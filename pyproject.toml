@@ -54,6 +54,9 @@ dependencies = [
     "click",
     "more_click",
     "typing-extensions",
+    "upf-tools",
+    "ipdb",
+    "atomic-femdvr",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
@@ -74,6 +77,9 @@ docs = [
 ]
 lint = [
     "ruff",
+]
+pylint = [
+    "pylint",
 ]
 typing = [
     { include-group = "tests" },
@@ -275,3 +281,16 @@ replace = "VERSION = \"{new_version}\""
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
+
+[tool.pylint.typecheck]
+signature-mutators = [
+    "click.decorators.option",
+    "click.decorators.argument",
+    "click.decorators.version_option",
+    "click.decorators.help_option",
+    "click.decorators.pass_context",
+    "click.decorators.confirmation_option"
+]
+
+[tool.uv.sources]
+atomic-femdvr = { path = "../schueler/atomic-femdvr" }
