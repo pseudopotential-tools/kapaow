@@ -1,0 +1,40 @@
+&CONTROL
+  calculation = 'scf'
+  etot_conv_thr =   4.0000000000d-05
+  forc_conv_thr =   1.0000000000d-04
+  outdir = './out/'
+  prefix = 'aiida'
+  pseudo_dir = './pseudo/'
+  tprnfor = .true.
+  tstress = .true.
+  verbosity = 'high'
+/
+&SYSTEM
+  degauss =   1.4699728990d-02
+  ecutrho =   2.8800000000d+02
+  ecutwfc =   7.2000000000d+01
+  ibrav = 0
+  nat = 4
+  nosym = .false.
+  ntyp = 1
+  occupations = 'smearing'
+  smearing = 'cold'
+/
+&ELECTRONS
+  conv_thr =   8.0000000000d-10
+  electron_maxstep = 80
+  mixing_beta =   4.0000000000d-01
+/
+ATOMIC_SPECIES
+H      1.00794 H.upf
+ATOMIC_POSITIONS crystal
+H            0.6666666667       0.3333333333       0.8250200000
+H            0.3333333333       0.6666666667       0.1749800000
+H            0.3333333333       0.6666666667       0.3250200000
+H            0.6666666667       0.3333333333       0.6749800000
+K_POINTS automatic
+10 10 7 0 0 0
+CELL_PARAMETERS angstrom
+      4.0075900000       0.0000000000       0.0000000000
+     -2.0037950000       3.4706747480       0.0000000000
+      0.0000000000       0.0000000000       5.0030700000
