@@ -2,16 +2,17 @@
 
 import pytest
 
+from pao_plusplus.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis
 from pao_plusplus.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
-from pao_plusplus.basis import PseudoatomicBasis, AtomicBasis, AngularMomentum
+
 
 @pytest.mark.parametrize("increment", [1, 2, 3])
 def test_basis_extension_via_addition(increment: int) -> None:
     """Test the BasisExtensionViaAddition class.
-    
+
     This test should add 4s, then 3d, then 4p orbitals to the basis.
     """
-    basis = AtomicBasis(subshells=[{'n': 3, 'l': 0}, {'n': 3, 'l': 1}])
+    basis = AtomicBasis(subshells=[{"n": 3, "l": 0}, {"n": 3, "l": 1}])
 
     extension = BasisExtensionViaAddition(increment=increment)
 
@@ -24,10 +25,10 @@ def test_basis_extension_via_addition(increment: int) -> None:
 
     assert len(new_basis) == len(basis) + extension.increment
 
+
 @pytest.mark.parametrize("increment", [1, 2, 3])
 def test_basis_extension_via_polarization(increment: int) -> None:
     """Test the BasisExtensionViaPolarization class."""
-
     num_s = 1
     num_p = 1
     basis = PseudoatomicBasis(number_of_orbitals={0: num_s, 1: num_p})
@@ -42,4 +43,4 @@ def test_basis_extension_via_polarization(increment: int) -> None:
     assert new_basis.number_of_orbitals[AngularMomentum.D] == increment
     assert new_basis.number_of_orbitals[AngularMomentum.F] == increment - 1
     assert new_basis.number_of_orbitals[AngularMomentum.G] == max(increment - 2, 0)
-    assert len(new_basis) == (increment + 1) * (2*len(basis) + increment) / 2
+    assert len(new_basis) == (increment + 1) * (2 * len(basis) + increment) / 2

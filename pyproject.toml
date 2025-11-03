@@ -56,7 +56,9 @@ dependencies = [
     "typing-extensions",
     "upf-tools",
     "ipdb",
-    "atomic-femdvr",
+    "atomic-femdvr @ file:///home/linsco_e/code/schueler/atomic-femdvr",
+    "koopmans @ file:///home/linsco_e/code/koopmans",
+    "bayesian-optimization>=3.1.0",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
@@ -79,6 +81,7 @@ lint = [
     "ruff",
 ]
 pylint = [
+    { include-group = "tests" },
     "pylint",
 ]
 typing = [
@@ -214,6 +217,7 @@ extend-select = [
 ignore = [
     "D105", # Missing docstring in magic method
     "E203", # Black conflicts with the following
+    "E741", # l not allowed as a varaible
 ]
 
 # See https://docs.astral.sh/ruff/settings/#per-file-ignores
@@ -224,6 +228,8 @@ ignore = [
 "docs/source/conf.py" = ["ERA001"]
 # Prints are okay in notebooks
 "notebooks/**/*.ipynb" = ["T201"]
+# Allow assert within tests
+"tests/**/*.py" = ["S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -281,6 +287,12 @@ replace = "VERSION = \"{new_version}\""
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
+
+[tool.pylint]
+# Be slightly more lenient than default
+fail-under = 9.75
+max-args = 7
+max-positional-arguments = 7
 
 [tool.pylint.typecheck]
 signature-mutators = [

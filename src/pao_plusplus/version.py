@@ -26,8 +26,7 @@ def get_git_hash() -> str:
             )
         except CalledProcessError:
             return "UNHASHED"
-        else:
-            return ret.strip().decode("utf-8")[:8]
+        return ret.strip().decode("utf-8")[:8]
 
 
 def get_version(with_git_hash: bool = False) -> str:

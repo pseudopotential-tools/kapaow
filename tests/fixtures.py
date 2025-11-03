@@ -1,7 +1,9 @@
 """Fixtures for use in the test suite."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 
 @pytest.fixture
 def data_path() -> Path:

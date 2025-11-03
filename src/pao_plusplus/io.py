@@ -1,26 +1,58 @@
 """Input/output module for pao_plusplus."""
 
-import numpy as np
-import numpy.typing as npt
 from pathlib import Path
 
-def read_wannier90_dat_file(filename: Path) -> tuple[list[float], list[int], npt.NDArray[np.float64]]:
-    """Read a Wannier90 .dat file and return the radial grid, angular momentum values, and orbitals."""
-    with open(filename, "r") as f:
+import numpy as np
+import numpy.typing as npt
+
+
+def read_wannier90_dat_file(
+    filename: Path,
+) -> tuple[list[float], list[float], list[int], npt.NDArray[np.float64]]:
+    """Read a projector file and return the radial grid, angular momentum values, and orbitals."""
+    with open(filename, encoding="utf-8") as f:
         lines = f.readlines()
-    
+
     l_values = [int(x) for x in lines[1].split()]
 
+    x = [float(line.split()[0]) for line in lines[2:]]
     r = [float(line.split()[1]) for line in lines[2:]]
 
     orbitals = np.array([line.split()[2:] for line in lines[2:]], dtype=float).T
 
-    return r, l_values, orbitals
+    return x, r, l_values, orbitals
 
-def write_wannier90_dat_file(filename: Path, r: list[float], l_values: list[int], orbitals: npt.NDArray[np.float64]) -> None:
+
+def write_wannier90_dat_file(
+    filename: Path,
+    x: list[float],
+    r: list[float],
+    l_values: list[int],
+    orbitals: npt.NDArray[np.float64],
+) -> None:
     """Write a Wannier90 .dat file given the radial grid, angular momentum values, and orbitals."""
-    with open(filename, "w") as f:
-        f.write(f"{len(r)}\n")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"{len(r)} {len(l_values)}\n")
         f.write(" ".join(str(l) for l in l_values) + "\n")
-        for i in range(len(r)):
-            f.write(f"{i+1} {r[i]:.8e} " + " ".join(f"{orbital[i]:.8e}" for orbital in orbitals) + "\n")
+        for x_value, r_value, orbital_values in zip(x, r, orbitals.T, strict=True):
+            f.write(
+                f"{x_value:11.8e} {r_value:11.8e} "
+                + " ".join(f"{o:11.8e}" for o in orbital_values)
+                + "\n"
+            )
+
+
+def read_wannier90_amn_file(filename: Path) -> npt.NDArray[np.complex128]:
+    """Read a Wannier90 .amn file and return the amn array."""
+    with open(filename, encoding="utf-8") as fd:
+        lines = fd.readlines()
+
+    nbnd, nk, nw = [int(x) for x in lines[1].split()]
+
+    amn = np.zeros((nbnd, nw, nk), dtype=np.complex128)
+
+    for line in lines[2:]:
+        m, n, k, re, im = [float(x) for x in line.split()]
+        amn[int(m) - 1, int(n) - 1, int(k) - 1] = re + 1j * im
+
+    return amn
