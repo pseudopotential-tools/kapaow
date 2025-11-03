@@ -10,7 +10,7 @@
       "author_name": "Edward Linscott",
       "author_github": "elinscott",
       "author_email": "edwardlinscott@gmail.com",
-      "github_organization_name": "elinscott",
+      "github_organization_name": "pseudopotential-tools",
       "github_repository_name": "pao-plusplus",
       "command_line_interface": true,
       "gitlab": false,
@@ -22,7 +22,7 @@
       "__runner_install_uv": "uv tool install tox --with tox-uv",
       "__runner_install_pip": "python3 -m pip install tox tox-uv",
       "__runner_tests": "py",
-      "__gh_slug": "elinscott/pao-plusplus",
+      "__gh_slug": "pseudopotential-tools/pao-plusplus",
       "_template": "https://github.com/cthoyt/cookiecutter-snekpack",
       "_commit": "9e91376bfbc5bb2cd59e325ef1dc289a961e5aa4"
     }

@@ -9,7 +9,7 @@ model for code contributions. Follow these steps:
 
 1. [Create a fork](https://help.github.com/articles/fork-a-repo) of the upstream
    repository at
-   [`elinscott/pao-plusplus`](https://github.com/elinscott/pao-plusplus) on your
+   [`pseudopotential-tools/pao-plusplus`](https://github.com/pseudopotential-tools/pao-plusplus) on your
    GitHub account (or in one of your organizations)
 2. [Clone your fork](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
    with `git clone https://github.com/<your namespace here>/pao-plusplus.git`
@@ -92,7 +92,7 @@ resolve conflicts against the main branch. After cloning, you should add the
 upstream repository with
 
 ```shell
-$ git remote add elinscott https://github.com/elinscott/pao-plusplus.git
+$ git remote add upstream https://github.com/pseudopotential-tools/pao-plusplus.git
 ```
 
 Then, you can merge upstream code into your branch. You can also use the GitHub

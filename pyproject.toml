@@ -128,9 +128,9 @@ release = [
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#urls
 # and also https://packaging.python.org/en/latest/specifications/well-known-project-urls/
 [project.urls]
-"Bug Tracker" = "https://github.com/elinscott/pao-plusplus/issues"
-Homepage = "https://github.com/elinscott/pao-plusplus"
-Repository = "https://github.com/elinscott/pao-plusplus.git"
+"Bug Tracker" = "https://github.com/pseudopotential-tools/pao-plusplus/issues"
+Homepage = "https://github.com/pseudopotential-tools/pao-plusplus"
+Repository = "https://github.com/pseudopotential-tools/pao-plusplus.git"
 Documentation = "https://pao_plusplus.readthedocs.io"
 Funding = "https://github.com/sponsors/elinscott"
 
