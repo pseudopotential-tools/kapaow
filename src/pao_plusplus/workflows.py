@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from contextlib import redirect_stdout
 from os.path import relpath
 from pathlib import Path
+from typing import Any
 
 from koopmans.io import read as koopmans_read
 from koopmans.kpoints import Kpoints
@@ -16,6 +17,7 @@ from pao_plusplus.engine import (
     LocalhostEngineThatStopsEarly,
     PW2WannierCompletedError,
     Wannier90PPCompletedError,
+    commands_from_qe_bin,
     stop_after_pw2wannier,
     stop_after_wannier90pp,
 )
@@ -23,8 +25,18 @@ from pao_plusplus.engine import (
 PSEUDO_LIBRARY = "pao_plusplus"
 
 
+KPOINT_PATCHES: dict[str, list[int]] = {
+    "Zn-SC.pwi": [16, 16, 16],
+    "In.pwi": [18, 18, 18],
+    "Ir.pwi": [19, 19, 19],
+    "Sb-FCC.pwi": [16, 16, 16],
+    "In-XO2.pwi": [10, 10, 10],
+    "In-X205.pwi": [8, 8, 8],
+}
+
 def pwi_to_workflow(
-    pwi_file: Path, proj_dir: Path, engine: LocalhostEngineThatStopsEarly
+    pwi_file: Path, proj_dir: Path, engine: LocalhostEngineThatStopsEarly, diagonalization: str = 'david',
+    calculate_bands: bool = True,
 ) -> WannierizeWorkflow:
     """Construct a Wannierize workflow from a pw.x input file."""
     calculator = koopmans_read(pwi_file)
@@ -34,7 +46,8 @@ def pwi_to_workflow(
     pw_params.prefix = "kc"
     pw_params.electron_maxstep = 2000
     pw_params.pop("pseudo_dir")
-    kpoints = Kpoints(grid=calculator.parameters["kpts"])
+    kpoints = Kpoints(grid=KPOINT_PATCHES.get(pwi_file.name, calculator.parameters["kpts"]))
+    pw_params.diagonalization = diagonalization
     ecutwfc = pw_params.pop("ecutwfc")
     ecutrho = pw_params.pop("ecutrho")
 
@@ -57,7 +70,7 @@ def pwi_to_workflow(
                 dst.unlink()
             with open(dst, "w", encoding="utf-8") as f:
                 f.write(pseudo.to_dat())
-
+              
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         workflow = WannierizeWorkflow(
@@ -76,7 +89,9 @@ def pwi_to_workflow(
     # Make sure we include (more than) enough bands to ensure we get all the
     # atomic-like bands
     num_wann = workflow.projections.num_bands(spin=Spin.NONE)
-    workflow.calculator_parameters["pw"]["nbnd"] = 2 * num_wann
+    workflow.calculator_parameters["pw"]["nbnd"] = int(1.5 * num_wann)
+
+    workflow.parameters.calculate_bands = calculate_bands
 
     return workflow
 
@@ -87,28 +102,33 @@ def run_wannierize_workflow(
     w90_working_dir: Path,
     pw_working_dir: Path,
     pseudo_files: Iterator[Path],
+    diagonalization: str = 'david',
+    qe_bin: Path | None = None,
 ) -> WannierizeWorkflow:
     """Run the Wannierize workflow, using pre-computed qe results where available."""
+    commands = commands_from_qe_bin(qe_bin)
+
     # First, run the parts of the workflow that don't need to be re-evaluated
     # if the projector changes
     # Run the qe part of the workflow
     engine = LocalhostEngineThatStopsEarly(
+        commands=commands,
         stop_condition=stop_after_wannier90pp,
         stop_exception=Wannier90PPCompletedError,
         from_scratch=False,
     )
     for f in pseudo_files:
         engine.install_pseudopotential(f, library=PSEUDO_LIBRARY)
-    workflow = pwi_to_workflow(pwi_file, proj_dir, engine=engine)
+    workflow = pwi_to_workflow(pwi_file, proj_dir, engine=engine, diagonalization=diagonalization)
     with chdir(pw_working_dir):
-        with open("koopmans.md", "w", encoding="utf-8") as koopmans_output:
-            with redirect_stdout(koopmans_output):
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", CalculatorNotConvergedWarning)
-                    try:
-                        workflow.run()
-                    except engine.stop_exception:
-                        pass
+        # with open("koopmans.md", "w", encoding="utf-8") as koopmans_output:
+        #     with redirect_stdout(koopmans_output):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", CalculatorNotConvergedWarning)
+            try:
+                workflow.run()
+            except engine.stop_exception:
+                pass
 
     # Link all the files from the pw_working_dir to the w90_working_dir
     w90_working_dir.mkdir(parents=True, exist_ok=True)
@@ -125,6 +145,7 @@ def run_wannierize_workflow(
 
     # Run the projector-dependent part of the workflow
     engine = LocalhostEngineThatStopsEarly(
+        commands=commands,
         stop_condition=stop_after_pw2wannier,
         stop_exception=PW2WannierCompletedError,
         from_scratch=False,

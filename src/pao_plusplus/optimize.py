@@ -13,7 +13,7 @@ from upf_tools import UPFDict
 from pao_plusplus.data.sssp.espresso import input_files
 from pao_plusplus.extend import BasisExtension
 from pao_plusplus.projectability import compute_projectability
-from pao_plusplus.solve import solve_pseudoatomic_problem
+from pao_plusplus.solve import PseudoAtomicInput, solve_pseudoatomic_problem
 
 RI_LOWER = 0.05
 RI_UPPER = 0.95
@@ -21,7 +21,12 @@ RC_LOWER = 5.0
 RC_UPPER = 15.0
 
 
-def optimize(upf_path: Path, extension: BasisExtension | None = None) -> None:
+ATOMIC_FEMDVR_PATCHES = {
+    "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
+}
+
+
+def optimize(upf_path: Path, extension: BasisExtension | None = None, qe_bin: Path | None = None) -> None:
     """Optimize the confining potential to maximise projectability."""
     upf_dict = UPFDict.from_upf(upf_path)
 
@@ -45,6 +50,7 @@ def optimize(upf_path: Path, extension: BasisExtension | None = None) -> None:
         tag = f"{element}_rc_{rc:.10f}_ri-factor_{ri_factor:.10f}"
         dat_filename = f"{tag}.dat"
 
+        # Splve the pseudoatomic problem
         solve_pseudoatomic_problem(
             upf_path,
             rc,
@@ -52,6 +58,7 @@ def optimize(upf_path: Path, extension: BasisExtension | None = None) -> None:
             extension=extension,
             working_dir=projector_dir,
             dat_filename=dat_filename,
+            atomic_femdvr_config=ATOMIC_FEMDVR_PATCHES.get(element, None)
         )
 
         # Create a symlink of the .dat file that has the same name as the .upf file
@@ -68,12 +75,10 @@ def optimize(upf_path: Path, extension: BasisExtension | None = None) -> None:
                 proj_dir=projector_dir,
                 working_dir=calculation_dir,
                 pseudo_files=upf_path.parent.glob("*.upf"),
+                qe_bin=qe_bin,
             )
             scores[pw_input_file.stem] = score
-
-        average = sum(scores.values()) / len(scores)
-
-        return average
+        return sum(scores.values()) / len(scores)
 
     optimizer = create_optimizer(parameters_to_score)
 
@@ -112,11 +117,23 @@ def _plot(
     optimizer: BayesianOptimization,
     contourf_kwargs: dict[str, Any] | None = None,
     filename: Path | None = None,
+    plot_uncertainty: bool = False,
+    plot_acquisition: bool = False,
 ) -> None:
     contourf_kwargs = {} if contourf_kwargs is None else contourf_kwargs
 
-    fig, axarr = plt.subplots(3, 1, figsize=(6, 9), sharex=True)
-    [ax, ax2, ax3] = axarr
+    n_axes = 1 + int(plot_uncertainty) + int(plot_acquisition)
+    fig, axarr = plt.subplots(n_axes, 1, figsize=(6, 1 + 3 * n_axes), sharex=True)
+
+    if not plot_uncertainty and not plot_acquisition:
+        axarr = [axarr]
+        [ax] = axarr
+    elif plot_uncertainty and plot_acquisition:
+        [ax, ax2, ax3] = axarr
+    elif plot_uncertainty and not plot_acquisition:
+        [ax, ax2] = axarr
+    else:
+        [ax, ax3] = axarr
 
     x = np.linspace(*optimizer.space.bounds[0])
     y = np.linspace(*optimizer.space.bounds[1])
@@ -146,7 +163,7 @@ def _plot(
         )
 
         # Colorbar
-        axc = fig.colorbar(surf, aspect=5)
+        axc = fig.colorbar(surf, aspect=8)
         axc.set_label(colorbar_label)
 
         # White crosses for the trials
@@ -157,7 +174,7 @@ def _plot(
             ax.scatter(x_rescaled, y_rescaled, marker="x", color="w")
 
         # Red cross for the maximum
-        [x, y] = optimizer.res[0]["params"].values()
+        [x, y] = optimizer.max["params"].values()
         x_rescaled = RC_LOWER + (RC_UPPER - RC_LOWER) * x
         y_rescaled = RI_LOWER + (RI_UPPER - RI_LOWER) * y
         ax.scatter(x_rescaled, y_rescaled, marker="x", color="r")
@@ -167,16 +184,18 @@ def _plot(
     # Plot the fitted function across the 2D grid
     z_grid = 1 - mu.reshape(x_grid.shape)
     log_z = np.log(z_grid)
-    _plot_contourf_with_colorbar(ax, log_z, r"$\log(1 - p)$")
+    _plot_contourf_with_colorbar(ax, log_z, r"$\log(1 - F)$")
 
     # Plot the uncertainty across the 2D grid
-    z_grid = sigma.reshape(x_grid.shape)
-    _plot_contourf_with_colorbar(ax2, z_grid, "uncertainty in fit")
+    if plot_uncertainty:
+        z_grid = sigma.reshape(x_grid.shape)
+        _plot_contourf_with_colorbar(ax2, z_grid, "uncertainty in fit")
 
     # Plot the acquisition function across the 2D grid
-    utility = optimizer.acquisition_function._get_acq(optimizer._gp)(grid)
-    z_grid = utility.reshape(x_grid.shape)
-    _plot_contourf_with_colorbar(ax3, z_grid, "utility function")
+    if plot_acquisition:
+        utility = optimizer.acquisition_function._get_acq(optimizer._gp)(grid)
+        z_grid = utility.reshape(x_grid.shape)
+        _plot_contourf_with_colorbar(ax3, z_grid, "utility function")
 
     res = optimizer.res[0]["params"].keys()
 

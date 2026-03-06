@@ -56,9 +56,15 @@ dependencies = [
     "typing-extensions",
     "upf-tools",
     "ipdb",
-    "atomic-femdvr @ file:///home/linsco_e/code/schueler/atomic-femdvr",
-    "koopmans @ file:///home/linsco_e/code/koopmans",
+    "atomic-femdvr",
+    "koopmans",
+    "ase-koopmans",
     "bayesian-optimization>=3.1.0",
+    "periodic_trends @ git+https://github.com/Andrew-S-Rosen/periodic_trends.git",
+    "qe-wavefunctions",
+    "pandas>=2.3.3",
+    "selenium>=4.38.0",
+    "chromedriver-binary>=144.0.7523.0.0",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
@@ -306,3 +312,6 @@ signature-mutators = [
 
 [tool.uv.sources]
 atomic-femdvr = { path = "../schueler/atomic-femdvr" }
+qe-wavefunctions = { path = "../schueler/QE-wavefunctions" }
+ase-koopmans = { path = "../ase_koopmans" }
+koopmans = { path = "../koopmans" }

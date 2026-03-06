@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 from koopmans.utils import Spin
+from ase_koopmans.calculators.calculator import CalculationFailed
 
 from pao_plusplus.io import read_wannier90_amn_file
 from pao_plusplus.workflows import run_wannierize_workflow
@@ -30,6 +31,7 @@ def compute_projectability(
     proj_dir: Path,
     working_dir: Path,
     pseudo_files: Iterator[Path],
+    qe_bin: Path | None = None,
 ) -> float:
     """Compute the projectability of a set of PAOs against a set of bands.
 
@@ -37,13 +39,29 @@ def compute_projectability(
     the `.pwi` file.
     """
     # Run the wannierize workflow up until the wannier90 step
-    workflow = run_wannierize_workflow(
-        pwi_file=pwi_file,
-        proj_dir=proj_dir,
-        w90_working_dir=working_dir / "w90" / tag / pwi_file.stem,
-        pw_working_dir=working_dir / "pw" / pwi_file.stem,
-        pseudo_files=pseudo_files,
-    )
+    workflow_kwargs = {
+        'pwi_file': pwi_file,
+        'proj_dir': proj_dir,
+        'w90_working_dir': working_dir / "w90" / tag / pwi_file.stem,
+        'pw_working_dir': working_dir / "pw" / pwi_file.stem,
+        'pseudo_files': pseudo_files,
+        'qe_bin': qe_bin,
+    }
+
+    # Try davidson, then paro, then cg
+    for diagonalization in ['david', 'paro', 'cg']:
+        workflow_kwargs['diagonalization'] = diagonalization
+        if diagonalization != 'david':
+            workflow_kwargs['pw_working_dir'] = working_dir / "pw" / (pwi_file.stem + "-" + diagonalization)
+
+        try:
+            workflow = run_wannierize_workflow(**workflow_kwargs)
+            break
+        except CalculationFailed:
+            # Re-attempt using the next diagonalisation method
+            continue
+    else:
+        raise CalculationFailed("All diagonalisation methods failed.")
 
     # Extract the projectability from the amn file
     pw2wannier_step = workflow.steps[-1]

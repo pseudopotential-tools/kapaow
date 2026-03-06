@@ -1,8 +1,10 @@
 """A customised engine for running koopmans workflows that can stop early."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 from koopmans.calculators import PW2WannierCalculator, Wannier90Calculator
+from koopmans.commands import CommandConfigs
 from koopmans.engines.localhost import LocalhostEngine
 from koopmans.processes import ProcessProtocol
 
@@ -39,3 +41,13 @@ class LocalhostEngineThatStopsEarly(LocalhostEngine):
         if self.stop_condition(step, additional_flags):
             raise self.stop_exception()
         return super().run(step, additional_flags)
+
+
+def commands_from_qe_bin(qe_bin: Path | None) -> CommandConfigs:
+    """Create a CommandConfigs with QE executables from the given bin directory."""
+    if qe_bin is None:
+        return CommandConfigs()
+    return CommandConfigs(
+        pw={"executable": str(qe_bin / "pw.x")},
+        pw2wannier90={"executable": str(qe_bin / "pw2wannier90.x")},
+    )
