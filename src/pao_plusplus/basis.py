@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
+from pathlib import Path
 from typing import Any, Self
 
 from pydantic import field_validator, model_validator
@@ -105,6 +106,11 @@ class PseudoatomicBasis(Basis):
         return PseudoatomicBasis(number_of_orbitals=new_number_of_orbitals)
 
     @property
+    def total_number_of_orbitals(self) -> int:
+        """Total number of orbitals per atom, accounting for m-degeneracy."""
+        return sum(count * (2 * l.value + 1) for l, count in self.number_of_orbitals.items())
+
+    @property
     def l_values(self) -> list[int]:
         """List of l values in the basis set, repeated according to the number of orbitals."""
         l_vals: list[int] = []
@@ -186,6 +192,16 @@ class AtomicBasis(Basis):
                 number_of_orbitals[subshell.l] = 0
             number_of_orbitals[subshell.l] += 1
         return PseudoatomicBasis(number_of_orbitals=number_of_orbitals)
+
+    @classmethod
+    def from_upf(cls, upf_path: Path) -> AtomicBasis:
+        """Construct an AtomicBasis from a UPF pseudopotential file."""
+        from upf_tools import UPFDict
+
+        upf_dict = UPFDict.from_upf(upf_path)
+        return cls(
+            subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
+        )
 
     def extend(self, subshells: list[Subshell]) -> AtomicBasis:
         """Return a new AtomicBasis with an added subshell."""

@@ -27,6 +27,44 @@ class BasisExtensionViaAddition(BasisExtension):
 
     increment: int = Field(default=1, description="number of subshells to add")
 
+    def extend_atomic(self, basis: AtomicBasis) -> AtomicBasis:
+        """Extend the provided basis by adding the next subshell(s), returning an AtomicBasis.
+
+        First checks for gaps in Madelung order between basis subshells
+        (e.g. 5s missing between 4p and 4d for Pd), filtering out core
+        subshells (n < min n of basis). If no valid gaps, adds the next
+        subshell after the outermost.
+        """
+        indices = sorted(ordered_subshells.index(s) for s in basis.subshells)
+        i_innermost = indices[0]
+        i_outermost = indices[-1]
+        min_n = min(s.n for s in basis.subshells)
+
+        # For each l channel, record the max n present in the basis
+        max_n_per_l: dict[AngularMomentum, int] = {}
+        for s in basis.subshells:
+            if s.l not in max_n_per_l or s.n > max_n_per_l[s.l]:
+                max_n_per_l[s.l] = s.n
+
+        # Look for valid gaps between innermost and outermost basis entries
+        # Skip core subshells: n < min_n, or same l channel already has higher n
+        gaps = []
+        for subshell in ordered_subshells[i_innermost:i_outermost]:
+            if subshell in basis:
+                continue
+            if subshell.n < min_n:
+                continue
+            if subshell.l in max_n_per_l and subshell.n < max_n_per_l[subshell.l]:
+                continue
+            gaps.append(subshell)
+
+        # Use gaps first, then continue past outermost
+        candidates = gaps + ordered_subshells[i_outermost + 1:]
+        to_add = candidates[:self.increment]
+        if len(to_add) < self.increment:
+            raise ValueError(f"Cannot add {self.increment} subshell(s) beyond the current basis.")
+        return basis.extend(to_add)
+
     def extend(self, basis: AtomicBasis | PseudoatomicBasis) -> PseudoatomicBasis:
         """Extend the provided basis by adding the next subshell(s)."""
         if isinstance(basis, PseudoatomicBasis):
@@ -34,22 +72,7 @@ class BasisExtensionViaAddition(BasisExtension):
                 "Cannot extend pseudoatomic bases by addition because we can't know"
                 " what l channel to add to"
             )
-        # Go through all possible subshells in reverse order
-        outermost_subshell: Subshell | None = None
-        for subshell in ordered_subshells[::-1]:
-            if subshell in basis:
-                outermost_subshell = subshell
-                break
-
-        if outermost_subshell is None:
-            raise ValueError("Basis set is empty.")
-
-        i_outermost = ordered_subshells.index(outermost_subshell)
-        to_add = ordered_subshells[i_outermost + 1 : i_outermost + 1 + self.increment]
-
-        new_basis = basis.extend(to_add)
-
-        return new_basis.to_pseudoatomic_basis()
+        return self.extend_atomic(basis).to_pseudoatomic_basis()
 
 
 class BasisExtensionViaPolarization(BasisExtension):

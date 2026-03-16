@@ -14,8 +14,17 @@ class PW2WannierCompletedError(Exception):
     """Custom exception to indicate pw2wannier step completion."""
 
 
+class BandsCompletedError(Exception):
+    """Custom exception to indicate bands step completion."""
+
+
 class Wannier90PPCompletedError(Exception):
     """Custom exception to indicate Wannier90 preprocessing step completion."""
+
+
+def stop_after_bands(step: ProcessProtocol, _: list[str]) -> bool:
+    """Stop the workflow after the bands step i.e. before wannier90 -pp."""
+    return isinstance(step, Wannier90Calculator)
 
 
 def stop_after_wannier90pp(step: ProcessProtocol, _: list[str]) -> bool:

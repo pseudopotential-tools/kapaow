@@ -14,10 +14,12 @@ from koopmans.utils.warnings import CalculatorNotConvergedWarning
 from koopmans.workflows import WannierizeWorkflow
 
 from pao_plusplus.engine import (
+    BandsCompletedError,
     LocalhostEngineThatStopsEarly,
     PW2WannierCompletedError,
     Wannier90PPCompletedError,
     commands_from_qe_bin,
+    stop_after_bands,
     stop_after_pw2wannier,
     stop_after_wannier90pp,
 )
@@ -36,7 +38,7 @@ KPOINT_PATCHES: dict[str, list[int]] = {
 
 def pwi_to_workflow(
     pwi_file: Path, proj_dir: Path, engine: LocalhostEngineThatStopsEarly, diagonalization: str = 'david',
-    calculate_bands: bool = True,
+    calculate_bands: bool = True, min_nbnd: int | None = None,
 ) -> WannierizeWorkflow:
     """Construct a Wannierize workflow from a pw.x input file."""
     calculator = koopmans_read(pwi_file)
@@ -61,13 +63,11 @@ def pwi_to_workflow(
         },
     }
 
-    # Copy over any missing .dat files
+    # Ensure .dat files exist for all species (needed by koopmans to count projectors)
     for element in {atom.symbol for atom in atoms}:
-        if not pwi_file.stem.startswith(element):
+        dst = proj_dir / f"{element}.dat"
+        if not dst.exists():
             pseudo = engine.get_pseudopotential(PSEUDO_LIBRARY, element)
-            dst = proj_dir / f"{element}.dat"
-            if dst.exists():
-                dst.unlink()
             with open(dst, "w", encoding="utf-8") as f:
                 f.write(pseudo.to_dat())
               
@@ -89,9 +89,48 @@ def pwi_to_workflow(
     # Make sure we include (more than) enough bands to ensure we get all the
     # atomic-like bands
     num_wann = workflow.projections.num_bands(spin=Spin.NONE)
-    workflow.calculator_parameters["pw"]["nbnd"] = int(1.5 * num_wann)
+    nbnd = int(1.5 * num_wann)
+    if min_nbnd is not None:
+        nbnd = max(nbnd, min_nbnd)
+    workflow.calculator_parameters["pw"]["nbnd"] = nbnd
 
     workflow.parameters.calculate_bands = calculate_bands
+
+    return workflow
+
+
+def run_qe_workflow(
+    pwi_file: Path,
+    pw_working_dir: Path,
+    pseudo_files: Iterator[Path],
+    diagonalization: str = 'david',
+    qe_bin: Path | None = None,
+    min_nbnd: int | None = None,
+) -> WannierizeWorkflow:
+    """Run scf + nscf + bands, stopping before wannier90 -pp.
+
+    Uses the koopmans WannierizeWorkflow infrastructure with early stopping.
+    Results are cached: if the working directory already contains completed
+    calculations, they will be reused.
+    """
+    commands = commands_from_qe_bin(qe_bin)
+
+    engine = LocalhostEngineThatStopsEarly(
+        commands=commands,
+        stop_condition=stop_after_bands,
+        stop_exception=BandsCompletedError,
+        from_scratch=False,
+    )
+    for f in pseudo_files:
+        engine.install_pseudopotential(f, library=PSEUDO_LIBRARY)
+    workflow = pwi_to_workflow(pwi_file, proj_dir=pw_working_dir, engine=engine, diagonalization=diagonalization, min_nbnd=min_nbnd)
+    with chdir(pw_working_dir):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", CalculatorNotConvergedWarning)
+            try:
+                workflow.run()
+            except engine.stop_exception:
+                pass
 
     return workflow
 
