@@ -901,4 +901,5 @@ FodyWeavers.xsd
 scratch/
 tmp/
 uv.lock
-density_potential.pkl
+*.pkl
+*.h5
