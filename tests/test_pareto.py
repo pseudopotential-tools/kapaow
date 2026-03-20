@@ -4,14 +4,12 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from pao_plusplus.pareto import (
     dump_pareto_json,
     extract_pareto_front,
     find_kink_triplets,
 )
-
 
 # ---------------------------------------------------------------------------
 # extract_pareto_front
@@ -25,7 +23,6 @@ def test_pareto_single_point() -> None:
 
 def test_pareto_dominated_point() -> None:
     """A point dominated by another should not be on the front."""
-    # Point 0: (1, 1), Point 1: (2, 2) — point 1 is dominated
     spreads = [1.0, 2.0]
     shifts = [1.0, 2.0]
     assert extract_pareto_front(spreads, shifts) == [0]
@@ -33,7 +30,6 @@ def test_pareto_dominated_point() -> None:
 
 def test_pareto_tradeoff() -> None:
     """Two points with a trade-off should both be on the front."""
-    # Point 0: low spread, high shift. Point 1: high spread, low shift.
     spreads = [1.0, 3.0]
     shifts = [3.0, 1.0]
     result = extract_pareto_front(spreads, shifts)
@@ -41,9 +37,9 @@ def test_pareto_tradeoff() -> None:
 
 
 def test_pareto_three_points_one_dominated() -> None:
+    """Three non-dominated points should all be on the front."""
     spreads = [1.0, 2.0, 3.0]
     shifts = [3.0, 2.0, 1.0]
-    # All are on the front (each has a unique minimum in one dimension)
     result = extract_pareto_front(spreads, shifts)
     assert sorted(result) == [0, 1, 2]
 
@@ -52,7 +48,6 @@ def test_pareto_interior_point() -> None:
     """Interior point should be excluded."""
     spreads = [1.0, 2.0, 3.0]
     shifts = [3.0, 3.5, 1.0]
-    # Point 1 is dominated by point 0 (lower spread AND lower shift)
     result = extract_pareto_front(spreads, shifts)
     assert 1 not in result
     assert sorted(result) == [0, 2]
@@ -85,11 +80,8 @@ def test_kink_triplets_too_few_pareto_points() -> None:
 
 def test_kink_triplets_straight_line() -> None:
     """Points forming a straight line should have no kinks."""
-    # 5 points on a line: spread = [1, 2, 3, 4, 5], shift = [5, 4, 3, 2, 1]
     spreads = [1.0, 2.0, 3.0, 4.0, 5.0]
     shifts = [5.0, 4.0, 3.0, 2.0, 1.0]
-    # All are Pareto-optimal (each uniquely good on one axis)
-    # Straight line means no turning angles
     triplets = find_kink_triplets(spreads, shifts, threshold=np.radians(1))
     assert triplets == []
 
@@ -108,7 +100,12 @@ def test_kink_triplets_sharp_corner() -> None:
     # ab=(8,-5), bc=(1,-4), cross=8*(-4)-(-5)*1=-27 < 0 (right turn)
     spreads = [1.0, 9.0, 10.0]
     shifts = [10.0, 5.0, 1.0]
-    triplets = find_kink_triplets(spreads, shifts, threshold=np.radians(10), gap_factor=0.0)
+    triplets = find_kink_triplets(
+        spreads,
+        shifts,
+        threshold=np.radians(10),
+        gap_factor=0.0,
+    )
     assert len(triplets) == 1
     assert triplets[0][1] == 1  # middle point is the kink
 
@@ -118,7 +115,7 @@ def test_kink_triplets_sharp_corner() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_dump_pareto_json(tmp_path) -> None:
+def test_dump_pareto_json(tmp_path: Path) -> None:
     """dump_pareto_json should write valid JSON with pareto flags."""
     spreads = [1.0, 2.0, 3.0]
     shifts = [3.0, 2.5, 1.0]
@@ -133,13 +130,11 @@ def test_dump_pareto_json(tmp_path) -> None:
     data = json.loads(path.read_text())
     assert "points" in data
     assert len(data["points"]) == 3
-    # Check that pareto flags are present
     assert all("pareto" in p for p in data["points"])
-    # At least one point should be on the front
     assert any(p["pareto"] for p in data["points"])
 
 
-def test_dump_pareto_json_with_upf_path(tmp_path) -> None:
+def test_dump_pareto_json_with_upf_path(tmp_path: Path) -> None:
     """dump_pareto_json should include upf_path when provided."""
     spreads = [1.0]
     shifts = [1.0]
@@ -151,7 +146,7 @@ def test_dump_pareto_json_with_upf_path(tmp_path) -> None:
     assert data["upf_path"] == "/some/file.upf"
 
 
-def test_dump_pareto_json_fields(tmp_path) -> None:
+def test_dump_pareto_json_fields(tmp_path: Path) -> None:
     """Each point should have the expected fields."""
     spreads = [2.0]
     shifts = [0.5]

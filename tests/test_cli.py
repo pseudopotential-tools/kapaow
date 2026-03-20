@@ -1,15 +1,13 @@
 """Tests for the CLI module."""
 
 from pathlib import Path
-from unittest.mock import patch
 
 import click
 import pytest
 from click.testing import CliRunner
 
-from pao_plusplus.cli import _describe_extension, get_extension, main
+from pao_plusplus.cli import get_extension, main
 from pao_plusplus.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
-
 
 # ---------------------------------------------------------------------------
 # get_extension
@@ -17,34 +15,40 @@ from pao_plusplus.extend import BasisExtensionViaAddition, BasisExtensionViaPola
 
 
 def test_get_extension_empty() -> None:
+    """Empty add tuple should return None."""
     assert get_extension(()) is None
 
 
 def test_get_extension_single_subshell() -> None:
+    """Single subshell should produce addition with increment 1."""
     ext = get_extension(("subshell",))
     assert isinstance(ext, BasisExtensionViaAddition)
     assert ext.increment == 1
 
 
 def test_get_extension_double_subshell() -> None:
+    """Two subshells should produce addition with increment 2."""
     ext = get_extension(("subshell", "subshell"))
     assert isinstance(ext, BasisExtensionViaAddition)
     assert ext.increment == 2
 
 
 def test_get_extension_single_polarization() -> None:
+    """Single polarization should produce polarization with increment 1."""
     ext = get_extension(("polarization",))
     assert isinstance(ext, BasisExtensionViaPolarization)
     assert ext.increment == 1
 
 
 def test_get_extension_triple_polarization() -> None:
+    """Three polarizations should produce polarization with increment 3."""
     ext = get_extension(("polarization", "polarization", "polarization"))
     assert isinstance(ext, BasisExtensionViaPolarization)
     assert ext.increment == 3
 
 
 def test_get_extension_mixed_raises() -> None:
+    """Mixing subshell and polarization should raise UsageError."""
     with pytest.raises(click.UsageError, match="Cannot mix"):
         get_extension(("subshell", "polarization"))
 
@@ -56,16 +60,18 @@ def test_get_extension_mixed_raises() -> None:
 
 @pytest.fixture
 def runner() -> CliRunner:
+    """Return a Click test runner."""
     return CliRunner()
 
 
 @pytest.fixture
 def pao_file(data_path: Path) -> Path:
+    """Return path to the test .pao file."""
     return data_path / "pao_files" / "test_element.pao"
 
 
 def test_convert_pao_to_stdout(runner: CliRunner, pao_file: Path) -> None:
-    """convert should print .dat content to stdout when no -o given."""
+    """Convert should print .dat content to stdout when no -o given."""
     result = runner.invoke(main, ["convert", str(pao_file)])
     assert result.exit_code == 0
     # Output should contain the number of grid points and orbitals
@@ -76,7 +82,7 @@ def test_convert_pao_to_stdout(runner: CliRunner, pao_file: Path) -> None:
 
 
 def test_convert_pao_with_select(runner: CliRunner, pao_file: Path) -> None:
-    """convert with --select should select specific orbitals."""
+    """Convert with --select should select specific orbitals."""
     result = runner.invoke(main, ["convert", str(pao_file), "--select", "ssp"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -85,7 +91,7 @@ def test_convert_pao_with_select(runner: CliRunner, pao_file: Path) -> None:
 
 
 def test_convert_pao_to_file(runner: CliRunner, pao_file: Path, tmp_path: Path) -> None:
-    """convert with -o should write to file."""
+    """Convert with -o should write to file."""
     output = tmp_path / "output.dat"
     result = runner.invoke(main, ["convert", str(pao_file), "-o", str(output)])
     assert result.exit_code == 0
@@ -113,7 +119,7 @@ def test_convert_pao_invalid_select(runner: CliRunner, pao_file: Path) -> None:
 
 
 def test_confine_requires_add(runner: CliRunner, data_path: Path) -> None:
-    """confine without --add should error."""
+    """Confine without --add should error."""
     # Use any existing file as the UPF argument (it won't actually run the solver)
     dat_file = data_path / "dat_files" / "Mo.dat"
     result = runner.invoke(main, ["confine", str(dat_file)])
@@ -127,6 +133,7 @@ def test_confine_requires_add(runner: CliRunner, data_path: Path) -> None:
 
 
 def test_main_help(runner: CliRunner) -> None:
+    """Main help should list all top-level commands."""
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "convert" in result.output
@@ -137,12 +144,14 @@ def test_main_help(runner: CliRunner) -> None:
 
 
 def test_convert_help(runner: CliRunner) -> None:
+    """Convert help should list --select option."""
     result = runner.invoke(main, ["convert", "--help"])
     assert result.exit_code == 0
     assert "--select" in result.output
 
 
 def test_plot_help(runner: CliRunner) -> None:
+    """Plot help should list subcommands."""
     result = runner.invoke(main, ["plot", "--help"])
     assert result.exit_code == 0
     assert "paos" in result.output
@@ -150,6 +159,7 @@ def test_plot_help(runner: CliRunner) -> None:
 
 
 def test_optimize_help(runner: CliRunner) -> None:
+    """Optimize help should list subcommands."""
     result = runner.invoke(main, ["optimize", "--help"])
     assert result.exit_code == 0
     assert "projectability" in result.output

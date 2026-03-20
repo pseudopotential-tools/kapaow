@@ -3,11 +3,9 @@
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from pao_plusplus.io import (
     format_wannier90_dat,
-    read_wannier90_amn_file,
     read_wannier90_dat_file,
     write_wannier90_dat_file,
 )
@@ -57,7 +55,7 @@ def test_write_read_single_orbital(tmp_path: Path) -> None:
     orbitals = np.array([[0.5, 0.3]])
 
     write_wannier90_dat_file(tmp_path / "single.dat", x, r, l_values, orbitals)
-    x2, r2, l2, orb2 = read_wannier90_dat_file(tmp_path / "single.dat")
+    _x2, _r2, l2, orb2 = read_wannier90_dat_file(tmp_path / "single.dat")
     assert l2 == [0]
     assert orb2.shape == (1, 2)
 

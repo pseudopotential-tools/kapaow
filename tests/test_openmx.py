@@ -14,7 +14,6 @@ from pao_plusplus.openmx import (
     read_openmx_pao,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -22,16 +21,19 @@ from pao_plusplus.openmx import (
 
 @pytest.fixture
 def pao_file(data_path: Path) -> Path:
+    """Return path to the test .pao file."""
     return data_path / "pao_files" / "test_element.pao"
 
 
 @pytest.fixture
 def pao_text(pao_file: Path) -> str:
+    """Return the text content of the test .pao file."""
     return pao_file.read_text()
 
 
 @pytest.fixture
 def pao(pao_file: Path) -> OpenMXPAO:
+    """Return a parsed OpenMXPAO from the test file."""
     return read_openmx_pao(pao_file)
 
 
@@ -41,19 +43,23 @@ def pao(pao_file: Path) -> OpenMXPAO:
 
 
 def test_extract_param_lmax(pao_text: str) -> None:
+    """PAO.Lmax should be extracted as 2."""
     assert _extract_param(pao_text, "PAO.Lmax") == 2
 
 
 def test_extract_param_mul(pao_text: str) -> None:
+    """PAO.Mul should be extracted as 3."""
     assert _extract_param(pao_text, "PAO.Mul") == 3
 
 
 def test_extract_param_missing(pao_text: str) -> None:
+    """Missing key should raise ValueError."""
     with pytest.raises(ValueError, match="not found"):
         _extract_param(pao_text, "PAO.Nonexistent")
 
 
 def test_extract_param_with_comment() -> None:
+    """Inline comments after the value should be stripped."""
     text = "grid.num.output  500  # default=2000\n"
     assert _extract_param(text, "grid.num.output") == 500
 
@@ -64,20 +70,22 @@ def test_extract_param_with_comment() -> None:
 
 
 def test_extract_tag_l0(pao_text: str) -> None:
+    """L=0 block should contain 5 data lines."""
     block = _extract_tag(pao_text, "pseudo.atomic.orbitals.L=0")
     lines = block.strip().splitlines()
     assert len(lines) == 5
-    # First line should start with -5.0
     assert lines[0].strip().startswith("-5.0")
 
 
 def test_extract_tag_l1(pao_text: str) -> None:
+    """L=1 block should contain 5 data lines."""
     block = _extract_tag(pao_text, "pseudo.atomic.orbitals.L=1")
     lines = block.strip().splitlines()
     assert len(lines) == 5
 
 
 def test_extract_tag_missing(pao_text: str) -> None:
+    """Missing tag should raise ValueError."""
     with pytest.raises(ValueError, match="not found"):
         _extract_tag(pao_text, "pseudo.atomic.orbitals.L=99")
 
@@ -88,14 +96,17 @@ def test_extract_tag_missing(pao_text: str) -> None:
 
 
 def test_read_openmx_pao_lmax(pao: OpenMXPAO) -> None:
+    """Parsed lmax should be 2."""
     assert pao.lmax == 2
 
 
 def test_read_openmx_pao_num_mul(pao: OpenMXPAO) -> None:
+    """Parsed num_mul should be 3."""
     assert pao.num_mul == 3
 
 
 def test_read_openmx_pao_grid(pao: OpenMXPAO) -> None:
+    """Grid x and r should have 5 points with r = exp(x)."""
     assert len(pao.x) == 5
     assert len(pao.r) == 5
     np.testing.assert_allclose(pao.x[0], -5.0)
@@ -103,23 +114,30 @@ def test_read_openmx_pao_grid(pao: OpenMXPAO) -> None:
 
 
 def test_read_openmx_pao_orbitals_shape(pao: OpenMXPAO) -> None:
+    """Each l channel should have shape (5, 3)."""
     assert 0 in pao.orbitals
     assert 1 in pao.orbitals
-    # 5 grid points, 3 multiplicities per channel
     assert pao.orbitals[0].shape == (5, 3)
     assert pao.orbitals[1].shape == (5, 3)
 
 
 def test_read_openmx_pao_orbital_values(pao: OpenMXPAO) -> None:
-    # First grid point, first orbital of L=0 should be 0.5
+    """Spot-check specific orbital values from the test file."""
     np.testing.assert_allclose(pao.orbitals[0][0, 0], 0.5)
-    # First grid point, second orbital of L=0 should be 0.1
     np.testing.assert_allclose(pao.orbitals[0][0, 1], 0.1)
 
 
 def test_read_openmx_pao_real_file() -> None:
     """Read a real OpenMX .pao file from bundled data."""
-    real_pao = Path(__file__).parent.parent / "src" / "pao_plusplus" / "data" / "openmx" / "PAO" / "Si7.0.pao"
+    real_pao = (
+        Path(__file__).parent.parent
+        / "src"
+        / "pao_plusplus"
+        / "data"
+        / "openmx"
+        / "PAO"
+        / "Si7.0.pao"
+    )
     if not real_pao.exists():
         pytest.skip("Real PAO file not available")
     pao = read_openmx_pao(real_pao)
@@ -135,37 +153,44 @@ def test_read_openmx_pao_real_file() -> None:
 
 
 def test_parse_select_single() -> None:
+    """Single 's' should return [1]."""
     assert parse_select("s") == [1]
 
 
 def test_parse_select_sspd() -> None:
+    """'sspd' should return [2, 1, 1]."""
     assert parse_select("sspd") == [2, 1, 1]
 
 
 def test_parse_select_case_insensitive() -> None:
+    """Uppercase letters should work the same as lowercase."""
     assert parse_select("SPD") == [1, 1, 1]
 
 
 def test_parse_select_multiple_p() -> None:
+    """'ppp' should return [0, 3] (no s, three p)."""
     assert parse_select("ppp") == [0, 3]
 
 
 def test_parse_select_gap_in_channels() -> None:
-    # "sd" -> l=0 has 1, l=1 has 0, l=2 has 1
+    """'sd' should return [1, 0, 1] with a zero-count p channel."""
     assert parse_select("sd") == [1, 0, 1]
 
 
 def test_parse_select_all_letters() -> None:
+    """All angular momentum letters should parse correctly."""
     result = parse_select("spdfgh")
     assert result == [1, 1, 1, 1, 1, 1]
 
 
 def test_parse_select_empty() -> None:
+    """Empty string should raise ValueError."""
     with pytest.raises(ValueError, match="empty"):
         parse_select("")
 
 
 def test_parse_select_invalid_char() -> None:
+    """Invalid character should raise ValueError."""
     with pytest.raises(ValueError, match="Unknown angular momentum"):
         parse_select("x")
 
@@ -187,7 +212,7 @@ def test_convert_default_selection(pao: OpenMXPAO) -> None:
 def test_convert_custom_selection(pao: OpenMXPAO) -> None:
     """Select 2 s-orbitals and 1 p-orbital."""
     selected = [2, 1]
-    x, r, l_values, orbitals = convert_to_wannier90(pao, selected)
+    _x, _r, l_values, orbitals = convert_to_wannier90(pao, selected)
     assert l_values == [0, 0, 1]
     assert orbitals.shape == (3, 5)
 
@@ -195,7 +220,7 @@ def test_convert_custom_selection(pao: OpenMXPAO) -> None:
 def test_convert_single_channel(pao: OpenMXPAO) -> None:
     """Select only s-orbitals."""
     selected = [3]
-    x, r, l_values, orbitals = convert_to_wannier90(pao, selected)
+    _x, _r, l_values, orbitals = convert_to_wannier90(pao, selected)
     assert l_values == [0, 0, 0]
     assert orbitals.shape == (3, 5)
 
