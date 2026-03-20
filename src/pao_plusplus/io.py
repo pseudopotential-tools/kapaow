@@ -23,6 +23,23 @@ def read_wannier90_dat_file(
     return x, r, l_values, orbitals
 
 
+def format_wannier90_dat(
+    x: list[float],
+    r: list[float],
+    l_values: list[int],
+    orbitals: npt.NDArray[np.float64],
+) -> str:
+    """Format Wannier90 .dat content as a string."""
+    lines = [f"{len(r)} {len(l_values)}"]
+    lines.append(" ".join(str(l) for l in l_values))
+    for x_value, r_value, orbital_values in zip(x, r, orbitals.T, strict=True):
+        lines.append(
+            f"{x_value:11.8e} {r_value:11.8e} "
+            + " ".join(f"{o:11.8e}" for o in orbital_values)
+        )
+    return "\n".join(lines) + "\n"
+
+
 def write_wannier90_dat_file(
     filename: Path,
     x: list[float],
@@ -31,15 +48,7 @@ def write_wannier90_dat_file(
     orbitals: npt.NDArray[np.float64],
 ) -> None:
     """Write a Wannier90 .dat file given the radial grid, angular momentum values, and orbitals."""
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"{len(r)} {len(l_values)}\n")
-        f.write(" ".join(str(l) for l in l_values) + "\n")
-        for x_value, r_value, orbital_values in zip(x, r, orbitals.T, strict=True):
-            f.write(
-                f"{x_value:11.8e} {r_value:11.8e} "
-                + " ".join(f"{o:11.8e}" for o in orbital_values)
-                + "\n"
-            )
+    filename.write_text(format_wannier90_dat(x, r, l_values, orbitals), encoding="utf-8")
 
 
 def read_wannier90_amn_file(filename: Path) -> npt.NDArray[np.complex128]:

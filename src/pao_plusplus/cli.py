@@ -141,29 +141,33 @@ def convert(input_file: Path, select_str: str | None, output: Path | None) -> No
     INPUT_FILE is a UPF pseudopotential or an OpenMX .pao file. The format
     is detected from the file extension.
 
+    If -o/--output is not provided, the .dat content is printed to stdout.
+
     \b
     Examples:
         pao_plusplus convert Li.upf
+        pao_plusplus convert Li.upf -o Li.dat
         pao_plusplus convert Li8.0.pao --select sspd
     """
-    from pao_plusplus.io import write_wannier90_dat_file
-
-    dat_file = output or input_file.with_suffix(".dat")
-
     if input_file.suffix == ".pao":
+        from pao_plusplus.io import format_wannier90_dat
         from pao_plusplus.openmx import convert_to_wannier90, parse_select, read_openmx_pao
 
         pao = read_openmx_pao(input_file)
         selected = parse_select(select_str) if select_str else None
         x, r, l_values, orbitals = convert_to_wannier90(pao, selected)
-        write_wannier90_dat_file(dat_file, x, r, l_values, orbitals)
+        dat_content = format_wannier90_dat(x, r, l_values, orbitals)
     else:
         if select_str is not None:
             raise click.UsageError("--select is only valid for OpenMX .pao files.")
         upf_dict = UPFDict.from_upf(input_file)
-        dat_file.write_text(upf_dict.to_dat())
+        dat_content = upf_dict.to_dat()
 
-    click.echo(f"Written to {dat_file}")
+    if output is not None:
+        output.write_text(dat_content)
+        click.echo(f"Written to {output}")
+    else:
+        click.echo(dat_content, nl=False)
 
 
 # ---------------------------------------------------------------------------
@@ -184,11 +188,15 @@ def confine(upf: Path, rc: float | None, ri_factor: float | None,
             add: tuple[str, ...], output: Path | None) -> None:
     """Solve for PAOs under a confining potential, optionally adding orbitals.
 
+    If -o/--output is not provided, the .dat content is printed to stdout.
+
     \b
     Examples:
         pao_plusplus confine Li.upf --add subshell --rc 8 --ri-factor 0.9
         pao_plusplus confine Li.upf --add subshell --add subshell
     """
+    import tempfile
+
     extension = get_extension(add)
     if extension is None:
         raise click.UsageError("confine requires --add to specify which orbitals to add.")
@@ -199,16 +207,18 @@ def confine(upf: Path, rc: float | None, ri_factor: float | None,
         ri_factor = DEFAULT_RI_FACTOR_MAX
 
     if output is not None:
-        dat_file = output
+        solve_and_export(
+            upf, rc=rc, ri_factor=ri_factor, extension=extension, dat_filename=output
+        )
+        click.echo(f"Written to {output}")
     else:
-        ext_tag = _describe_extension(upf, extension)
-        suffix = f"{ext_tag}_rc_{rc}_ri-factor_{ri_factor}".replace('.', '_')
-        dat_file = Path(upf.stem + suffix).with_suffix(".dat")
-
-    solve_and_export(
-        upf, rc=rc, ri_factor=ri_factor, extension=extension, dat_filename=dat_file
-    )
-    click.echo(f"Written to {dat_file}")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dat_file = Path("output.dat")
+            solve_and_export(
+                upf, rc=rc, ri_factor=ri_factor, extension=extension,
+                dat_filename=dat_file, working_dir=Path(tmpdir),
+            )
+            click.echo((Path(tmpdir) / dat_file).read_text(), nl=False)
 
 
 # ---------------------------------------------------------------------------
