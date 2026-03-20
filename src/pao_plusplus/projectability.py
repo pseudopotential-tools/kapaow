@@ -13,6 +13,20 @@ from qe_wavefunctions.qe_projections import compute_atomic_projections
 from pao_plusplus.fat_bands import build_atoms_dict
 
 
+def _make_qe_input_wfc(
+    wfc_dir: Path, lattice_vectors: npt.NDArray[np.float64]
+) -> QEInputWFC:
+    """Create a QEInputWFC that reads wfcN.hdf5 directly from wfc_dir.
+
+    QEInputWFC normally looks in ``outdir/prefix.save/``, but AiiDA dumps
+    put wfc files flat in the outputs directory. We override ``outdir``
+    after construction to point directly at wfc_dir.
+    """
+    qe_wfc = QEInputWFC(outdir=str(wfc_dir), prefix="dummy", lattice_vectors=lattice_vectors)
+    qe_wfc.outdir = str(wfc_dir)
+    return qe_wfc
+
+
 @dataclass
 class CachedMaterial:
     """Pre-loaded QE wavefunctions and structural data for a material.
@@ -24,23 +38,27 @@ class CachedMaterial:
     atoms_dict: dict[str, Any]
     lattice_vectors: npt.NDArray[np.float64]
     kpoint_data: list[tuple[Any, Any, Any]]  # (kpt, miller, wfcs) per k-point
+    kpoint_weights: npt.NDArray[np.float64]
 
 
 def preload_material(
     pwi_file: Path,
-    outdir: Path,
-    prefix: str,
+    wfc_dir: Path,
+    kpoint_weights: npt.NDArray[np.float64],
 ) -> CachedMaterial:
     """Pre-load QE wavefunctions for all k-points.
 
     Call once after the QE calculation completes; the returned object
     can be reused across many projectability evaluations.
+
+    Args:
+        pwi_file: QE input file (for atom positions and lattice vectors).
+        wfc_dir: Directory containing wfcN.hdf5 files directly.
+        kpoint_weights: Array of k-point weights (from AiiDA output_kpoints).
     """
     atoms_dict, lattice_vectors = build_atoms_dict(pwi_file)
 
-    qe_wfc = QEInputWFC(
-        outdir=str(outdir), prefix=prefix, lattice_vectors=lattice_vectors
-    )
+    qe_wfc = _make_qe_input_wfc(wfc_dir, lattice_vectors)
 
     kpoint_data = []
     ik = 1
@@ -52,7 +70,20 @@ def preload_material(
         kpoint_data.append((kpt, miller, wfcs))
         ik += 1
 
-    return CachedMaterial(atoms_dict, lattice_vectors, kpoint_data)
+    if not kpoint_data:
+        raise FileNotFoundError(
+            f"No wavefunction files found in {wfc_dir}. "
+            f"Directory exists: {wfc_dir.exists()}. "
+            f"Contents: {list(wfc_dir.iterdir()) if wfc_dir.exists() else 'N/A'}"
+        )
+
+    if len(kpoint_data) != len(kpoint_weights):
+        raise ValueError(
+            f"Number of wfc files ({len(kpoint_data)}) does not match "
+            f"number of k-point weights ({len(kpoint_weights)})"
+        )
+
+    return CachedMaterial(atoms_dict, lattice_vectors, kpoint_data, kpoint_weights)
 
 
 def compute_projectability_cached(
@@ -78,13 +109,63 @@ def compute_projectability_cached(
         _, a_mn, c_mn = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
         proj_matrices.append((np.conj(c_mn).T @ a_mn).real)
 
-    return projectability_score(proj_matrices, num_target_bands)
+    return projectability_score(proj_matrices, num_target_bands, cached.kpoint_weights)
+
+
+def proj_matrices_from_amn(
+    amn: npt.NDArray[np.complex128],
+    cmn: npt.NDArray[np.complex128],
+) -> list[npt.NDArray[np.float64]]:
+    """Compute Re(C†A) matrices at each k-point from stacked Amn/Cmn arrays.
+
+    Parameters
+    ----------
+    amn
+        Array of shape (num_kpoints, num_orbitals, num_bands).
+    cmn
+        Array of shape (num_kpoints, num_orbitals, num_bands).
+
+    Returns
+    -------
+    list
+        List of Re(C†A) matrices, one per k-point.
+    """
+    return [(np.conj(cmn[ik]).T @ amn[ik]).real for ik in range(amn.shape[0])]
+
+
+def projectability_eigenvalues(
+    proj_matrices: list[npt.NDArray[np.float64]],
+) -> npt.NDArray[np.float64]:
+    """Compute gauge-invariant projectability eigenvalues at each k-point.
+
+    Diagonalises ``Re(C†A)`` at each k-point and returns eigenvalues
+    sorted in descending order.
+
+    Parameters
+    ----------
+    proj_matrices
+        List of Re(C†A) matrices, one per k-point, each of shape
+        (num_bands, num_bands).
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (num_kpoints, num_bands) with eigenvalues sorted
+        descending at each k-point.
+    """
+    result = []
+    for P in proj_matrices:
+        eigvals = np.sort(np.linalg.eigvalsh(P))[::-1]
+        result.append(eigvals)
+    return np.array(result)
 
 
 def projectability_score(
-    proj_matrices: list[npt.NDArray[np.float64]], num_target_bands: int
+    proj_matrices: list[npt.NDArray[np.float64]],
+    num_target_bands: int,
+    kpoint_weights: npt.NDArray[np.float64],
 ) -> float:
-    """Calculate the projectability score from the n smallest eigenvalues of Re(C†A).
+    """Calculate the weighted projectability score from eigenvalues of Re(C†A).
 
     Parameters
     ----------
@@ -93,19 +174,21 @@ def projectability_score(
         (num_bands, num_bands).
     num_target_bands
         Number of bands expected to be well-described by the PAO basis.
+    kpoint_weights
+        Array of k-point weights (should sum to ~1 when normalized).
 
     Returns
     -------
     float
-        Average of the ``num_target_bands`` largest eigenvalues of Re(C†A)
-        across all k-points.
+        Weighted average of the ``num_target_bands`` largest eigenvalues
+        of Re(C†A) across all k-points.
     """
-    num_kpoints = len(proj_matrices)
+    eigvals = projectability_eigenvalues(proj_matrices)
+    weights = kpoint_weights / np.sum(kpoint_weights)
     total = 0.0
-    for P in proj_matrices:
-        eigvals = np.sort(np.linalg.eigvalsh(P))
-        total += np.sum(eigvals[-num_target_bands:])
-    return float(total / num_target_bands / num_kpoints)
+    for ev, w in zip(eigvals, weights):
+        total += w * np.sum(ev[:num_target_bands])
+    return float(total / num_target_bands)
 
 
 def compute_projectability(
@@ -161,7 +244,8 @@ def compute_projectability(
         proj_matrices.append((np.conj(c_mn).T @ a_mn).real)
         ik += 1
 
-    return projectability_score(proj_matrices, num_target_bands)
+    equal_weights = np.ones(len(proj_matrices))
+    return projectability_score(proj_matrices, num_target_bands, equal_weights)
 
 
 def check_onsite_overlap(

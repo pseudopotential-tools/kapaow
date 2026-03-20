@@ -9,17 +9,14 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
-from ase_koopmans.calculators.calculator import CalculationFailed
-
-from ase_koopmans.io.espresso import read_espresso_in
+import ase.io
 
 from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.data.sssp.espresso import input_files
+from pao_plusplus.data.sssp.structures import input_files
 from pao_plusplus.extend import BasisExtension
-from pao_plusplus.fat_bands import generate_fat_bands_plot
 from pao_plusplus.projectability import compute_projectability_cached, preload_material
 from pao_plusplus.solve import PseudoAtomicInput, compute_spread, solve_and_export
-from pao_plusplus.workflows import run_qe_workflow
+from pao_plusplus.workflows import run_bands_workflow, run_qe_workflow
 
 RI_LOWER = 0.0
 RI_UPPER = 0.95
@@ -38,7 +35,7 @@ ATOMIC_FEMDVR_PATCHES = {
 
 
 def compute_num_target_bands(
-    pw_input_file: Path,
+    structure_file: Path,
     target_element: str,
     target_orbitals_per_atom: int,
     upf_by_element: dict[str, Path],
@@ -47,7 +44,7 @@ def compute_num_target_bands(
 
     This is the total number of PAO orbitals across all atoms in the unit cell.
     """
-    atoms = read_espresso_in(str(pw_input_file))
+    atoms = ase.io.read(str(structure_file))
     ntb = 0
     for sym in atoms.get_chemical_symbols():
         if sym == target_element:
@@ -61,17 +58,19 @@ def compute_num_target_bands(
 def optimize(
     upf_path: Path,
     extension: BasisExtension | None = None,
-    qe_bin: Path | None = None,
     spread_weight: float = 0.00,
 ) -> None:
     """Optimize the confining potential to maximise projectability."""
+    import warnings
+    warnings.filterwarnings("ignore", message="invalid value encountered", module="atomic_femdvr")
+
     upf_dict = UPFDict.from_upf(upf_path)
 
     element = upf_dict["header"]["element"].strip()
     if not isinstance(element, str):
         raise ValueError("Element symbol in UPF file is not a string.")
 
-    tmp_dir = Path("tmp")
+    tmp_dir = Path("tmp") / "optimize" / "projectability"
     projector_dir = tmp_dir / "projectors"
     calculation_dir = tmp_dir / "calculations"
 
@@ -93,36 +92,39 @@ def optimize(
         d = UPFDict.from_upf(f)
         upf_by_element[d["header"]["element"].strip()] = f
 
-    pw_input_file_list = [f for f in input_files(element)]
+    structure_file_list = list(input_files(element))
 
     # Compute per-material num_target_bands before running QE
     num_target_bands_per_material: dict[str, int] = {}
-    for pw_input_file in pw_input_file_list:
-        num_target_bands_per_material[pw_input_file.stem] = compute_num_target_bands(
-            pw_input_file, element, target_orbitals_per_atom, upf_by_element,
+    for structure_file in structure_file_list:
+        num_target_bands_per_material[structure_file.stem] = compute_num_target_bands(
+            structure_file, element, target_orbitals_per_atom, upf_by_element,
         )
 
-    # Run QE scf+nscf+bands once per test material
+    # Run QE scf+nscf and bands once per test material via AiiDA
     material_atoms: dict[str, Any] = {}
-    for pw_input_file in pw_input_file_list:
-        pw_working_dir = calculation_dir / "pw" / pw_input_file.stem
-        pw_working_dir.mkdir(parents=True, exist_ok=True)
-        ntb = num_target_bands_per_material[pw_input_file.stem]
+    qe_results: dict[str, Any] = {}
+    bands_results: dict[str, Any] = {}
+    for structure_file in structure_file_list:
+        working_dir = calculation_dir / structure_file.stem
+        working_dir.mkdir(parents=True, exist_ok=True)
+        ntb = num_target_bands_per_material[structure_file.stem]
         min_nbnd = max(int(1.5 * ntb), ntb + 4)
-        for diagonalization in ['david', 'paro', 'cg']:
-            try:
-                workflow = run_qe_workflow(
-                    pw_input_file,
-                    pw_working_dir=pw_working_dir,
-                    pseudo_files=pseudo_dir.glob("*.upf"),
-                    diagonalization=diagonalization,
-                    qe_bin=qe_bin,
-                    min_nbnd=min_nbnd,
-                )
-                break
-            except CalculationFailed:
-                continue
-        material_atoms[pw_input_file.stem] = workflow.atoms
+        result = run_qe_workflow(
+            structure_file,
+            working_dir=working_dir,
+            min_nbnd=min_nbnd,
+        )
+        qe_results[structure_file.stem] = result
+        material_atoms[structure_file.stem] = result.atoms
+
+        # Run bands along high-symmetry k-path (cached after first run)
+        bands_result = run_bands_workflow(
+            structure_file=structure_file,
+            working_dir=working_dir,
+            min_nbnd=min_nbnd,
+        )
+        bands_results[structure_file.stem] = bands_result
 
     # Generate unconfined Bessel files for non-target species
     all_other_species = {
@@ -139,29 +141,23 @@ def optimize(
 
     # Pre-load QE wavefunctions for all materials (avoids re-reading from disk each step)
     cached_materials = {}
-    for pw_input_file in pw_input_file_list:
-        pw_working_dir = calculation_dir / "pw" / pw_input_file.stem
-        nscf_dir = pw_working_dir / "02-nscf"
-        cached_materials[pw_input_file.stem] = preload_material(
-            pwi_file=nscf_dir / "nscf.pwi",
-            outdir=nscf_dir / "out",
-            prefix="kc",
+    for structure_file in structure_file_list:
+        result = qe_results[structure_file.stem]
+        cached_materials[structure_file.stem] = preload_material(
+            pwi_file=result.nscf_input_file,
+            wfc_dir=result.nscf_wfc_dir,
+            kpoint_weights=result.kpoint_weights,
         )
 
-    fat_bands_dir = tmp_dir / "fat_bands"
-    fat_bands_dir.mkdir(parents=True, exist_ok=True)
     step_counter = 1
-    best_score = float("-inf")
 
     def parameters_to_score(rc: float, ri_factor: float) -> float:
         """Compute a score based on the parameters."""
-        nonlocal step_counter, best_score
+        nonlocal step_counter
 
         # Rescaling
         rc_scaled = RC_LOWER + (RC_UPPER - RC_LOWER) * rc
         ri_factor_scaled = RI_LOWER + (RI_UPPER - RI_LOWER) * ri_factor
-        title = (f"$r_c$ = {rc_scaled:.2f} ({rc:.4f}), "
-                 f"$r_i/r_c$ = {ri_factor_scaled:.2f} ({ri_factor:.4f})")
         rc = rc_scaled
         ri_factor = ri_factor_scaled
 
@@ -182,36 +178,23 @@ def optimize(
 
         scores: dict[str, float] = {}
         bessel_maps: dict[str, dict[str, Path]] = {}
-        for pw_input_file in pw_input_file_list:
+        for structure_file in structure_file_list:
             # Build bessel map for all species in this material
-            material_species = {atom.symbol for atom in material_atoms[pw_input_file.stem]}
+            material_species = {atom.symbol for atom in material_atoms[structure_file.stem]}
             bessel_map: dict[str, Path] = {element: bessel_file}
             for other_elem in material_species - {element}:
                 bessel_map[other_elem] = other_bessel_files[other_elem]
-            bessel_maps[pw_input_file.stem] = bessel_map
+            bessel_maps[structure_file.stem] = bessel_map
 
             score = compute_projectability_cached(
-                cached_materials[pw_input_file.stem],
+                cached_materials[structure_file.stem],
                 bessel_files=bessel_map,
-                num_target_bands=num_target_bands_per_material[pw_input_file.stem],
+                num_target_bands=num_target_bands_per_material[structure_file.stem],
             )
-            scores[pw_input_file.stem] = score
+            scores[structure_file.stem] = score
 
         projectability = sum(scores.values()) / len(scores)
         combined_score = projectability - spread_weight * spread
-
-        # Generate fat bands only when a new best score is found
-        if combined_score > best_score:
-            best_score = combined_score
-            for pw_input_file in pw_input_file_list:
-                pw_working_dir = calculation_dir / "pw" / pw_input_file.stem
-                material_fat_bands_dir = fat_bands_dir / pw_input_file.stem
-                material_fat_bands_dir.mkdir(parents=True, exist_ok=True)
-                fat_bands_filename = material_fat_bands_dir / f"step_{step_counter:03d}.svg"
-                generate_fat_bands_plot(
-                    pw_working_dir, bessel_files=bessel_maps[pw_input_file.stem],
-                    filename=fat_bands_filename, title=title,
-                )
 
         step_counter += 1
         return combined_score

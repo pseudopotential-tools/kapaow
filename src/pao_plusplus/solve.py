@@ -127,6 +127,14 @@ def solve_and_export(
     # Filter the Bessel HDF5 file to only include the desired number of orbitals per l
     bessel_path = _filter_bessel_file(working_dir, pseudo_basis)
 
+    # Rename the bessel file to match the dat filename for stable referencing
+    if bessel_path is not None:
+        stable_bessel_path = (working_dir / dat_filename).with_suffix(".h5")
+        if stable_bessel_path != bessel_path:
+            import shutil
+            shutil.copy2(bessel_path, stable_bessel_path)
+            bessel_path = stable_bessel_path
+
     return result, bessel_path
 
 

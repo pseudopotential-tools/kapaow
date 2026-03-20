@@ -8,7 +8,7 @@ from bokeh.io import export_png, export_svg, save
 from bokeh.transform import dodge
 from periodic_trends import plotter
 from tqdm import tqdm
-from ase_koopmans.data import atomic_numbers
+from ase.data import atomic_numbers
 from upf_tools import UPFDict
 
 from pao_plusplus.basis import AtomicBasis, Subshell, ordered_subshells

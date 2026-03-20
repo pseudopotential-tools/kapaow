@@ -83,7 +83,7 @@ def compute_pareto_front(
     extension: BasisExtension | None = None,
     rc_values: list[float] | None = None,
     ri_factor_values: list[float] | None = None,
-    working_dir: Path = Path("tmp/pareto"),
+    working_dir: Path = Path("tmp/optimize/spread"),
     loglog: bool = False,
 ) -> tuple[list[float], list[float], list[dict]]:
     """Scan rc and ri_factor and collect spread and max energy shift for each.

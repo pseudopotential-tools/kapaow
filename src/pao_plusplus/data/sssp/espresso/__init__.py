@@ -1,4 +1,4 @@
-"""Quantum ESPRESSO input files for the SSSP benchmark set."""
+"""XSF files for the SSSP benchmark set."""
 
 from collections.abc import Generator
 from pathlib import Path
