@@ -124,7 +124,50 @@ def main(ctx: click.Context, debug: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# solve
+# convert
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--select", "select_str", type=str, default=None,
+              help="Orbitals to extract from an OpenMX .pao file (e.g. 'sspd' for 2s, 1p, 1d). "
+              "Only valid for .pao files.")
+@click.option("-o", "--output", type=click.Path(path_type=Path), default=None,
+              help="Output .dat file path (default: <stem>.dat).")
+def convert(input_file: Path, select_str: str | None, output: Path | None) -> None:
+    """Convert a pseudopotential file to Wannier90 .dat format.
+
+    INPUT_FILE is a UPF pseudopotential or an OpenMX .pao file. The format
+    is detected from the file extension.
+
+    \b
+    Examples:
+        pao_plusplus convert Li.upf
+        pao_plusplus convert Li8.0.pao --select sspd
+    """
+    from pao_plusplus.io import write_wannier90_dat_file
+
+    dat_file = output or input_file.with_suffix(".dat")
+
+    if input_file.suffix == ".pao":
+        from pao_plusplus.openmx import convert_to_wannier90, parse_select, read_openmx_pao
+
+        pao = read_openmx_pao(input_file)
+        selected = parse_select(select_str) if select_str else None
+        x, r, l_values, orbitals = convert_to_wannier90(pao, selected)
+        write_wannier90_dat_file(dat_file, x, r, l_values, orbitals)
+    else:
+        if select_str is not None:
+            raise click.UsageError("--select is only valid for OpenMX .pao files.")
+        upf_dict = UPFDict.from_upf(input_file)
+        dat_file.write_text(upf_dict.to_dat())
+
+    click.echo(f"Written to {dat_file}")
+
+
+# ---------------------------------------------------------------------------
+# confine
 # ---------------------------------------------------------------------------
 
 
@@ -135,35 +178,37 @@ def main(ctx: click.Context, debug: bool) -> None:
     "--ri-factor", type=float, default=None, help="Inner radius factor for the confining potential."
 )
 @add_option
-def solve(upf: Path, rc: float | None, ri_factor: float | None, add: tuple[str, ...]) -> None:
-    """Solve for the pseudoatomic orbitals of a UPF file.
+@click.option("-o", "--output", type=click.Path(path_type=Path), default=None,
+              help="Output .dat file path (default: auto-generated from UPF name and parameters).")
+def confine(upf: Path, rc: float | None, ri_factor: float | None,
+            add: tuple[str, ...], output: Path | None) -> None:
+    """Solve for PAOs under a confining potential, optionally adding orbitals.
 
-    Without --add, simply extracts the PAOs already present in the UPF.
-    With --add, solves for additional orbitals under confinement (--rc and
-    --ri-factor control the confining potential).
+    \b
+    Examples:
+        pao_plusplus confine Li.upf --add subshell --rc 8 --ri-factor 0.9
+        pao_plusplus confine Li.upf --add subshell --add subshell
     """
     extension = get_extension(add)
-
     if extension is None:
-        # No extension: just extract the PAOs from the UPF
-        if rc is not None or ri_factor is not None:
-            raise click.UsageError("--rc and --ri-factor require --add.")
-        upf_dict = UPFDict.from_upf(upf)
-        click.echo(upf_dict.to_dat())
-        return
+        raise click.UsageError("confine requires --add to specify which orbitals to add.")
 
     if rc is None:
         rc = DEFAULT_RC_MAX
     if ri_factor is None:
         ri_factor = DEFAULT_RI_FACTOR_MAX
 
-    ext_tag = _describe_extension(upf, extension)
-    suffix = f"{ext_tag}_rc_{rc}_ri-factor_{ri_factor}".replace('.', '_')
-    dat_file = Path(upf.stem + suffix).with_suffix(".dat")
+    if output is not None:
+        dat_file = output
+    else:
+        ext_tag = _describe_extension(upf, extension)
+        suffix = f"{ext_tag}_rc_{rc}_ri-factor_{ri_factor}".replace('.', '_')
+        dat_file = Path(upf.stem + suffix).with_suffix(".dat")
 
     solve_and_export(
         upf, rc=rc, ri_factor=ri_factor, extension=extension, dat_filename=dat_file
     )
+    click.echo(f"Written to {dat_file}")
 
 
 # ---------------------------------------------------------------------------
