@@ -3,25 +3,23 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+import matplotlib.colors as mcolors
 import numpy as np
 import numpy.typing as npt
 from ase.io.espresso import read_espresso_in
 from ase.units import Bohr
-from scipy.interpolate import make_interp_spline
 from matplotlib import pyplot as plt
 from matplotlib.collections import PolyCollection
-import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedLocator, FixedFormatter
+from matplotlib.ticker import FixedFormatter, FixedLocator
 from qe_wavefunctions.atomic_wfcs import AtomicWFC
 from qe_wavefunctions.qe_input_wfcs import QEInputWFC
 from qe_wavefunctions.qe_projections import compute_atomic_projections
+from scipy.interpolate import make_interp_spline
 
 from pao_plusplus.workflows import BandPlotData
-
-
-
 
 L_LABELS = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
 
@@ -85,7 +83,11 @@ def compute_amn(
     atoms_dict: dict,
     lattice_vectors: npt.NDArray[np.float64],
     num_kpoints: int,
-) -> tuple[npt.NDArray[np.complex128], npt.NDArray[np.complex128], dict[tuple[str, int], list[int]]]:
+) -> tuple[
+    npt.NDArray[np.complex128],
+    npt.NDArray[np.complex128],
+    dict[tuple[str, int], list[int]],
+]:
     """Compute the Amn projection matrix at each k-point.
 
     Parameters
@@ -97,7 +99,7 @@ def compute_amn(
     bessel_files
         Mapping of species name to Bessel HDF5 file path.
     atoms_dict
-        Atomic structure info: ``{species: {'num_atoms': int, 'positions': [[x,y,z], ...]}}``.
+        Atomic structure info dict keyed by species.
     lattice_vectors
         Real-space lattice vectors as a 3x3 array.
     num_kpoints
@@ -118,7 +120,10 @@ def compute_amn(
         lattice_vectors=lattice_vectors,
     )
 
-    atomic_wfc = AtomicWFC(atoms_dict=atoms_dict, lattice_vectors=lattice_vectors)
+    atomic_wfc = AtomicWFC(
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+    )
     species_list = list(bessel_files.keys())
     file_list = [str(bessel_files[s]) for s in species_list]
     atomic_wfc.load_atomic_wfcs(file_list)
@@ -128,7 +133,7 @@ def compute_amn(
     amn_list = []
     cmn_list = []
     for ik in range(1, num_kpoints + 1):
-        kpt, kvec, miller, wfcs = qe_wfc.get_wfc(ik)
+        kpt, _kvec, miller, wfcs = qe_wfc.get_wfc(ik)
         _, a_mn, c_mn = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
         amn_list.append(a_mn)
         cmn_list.append(c_mn)
@@ -142,13 +147,20 @@ def compute_amn_from_wfc(
     atoms_dict: dict,
     lattice_vectors: npt.NDArray[np.float64],
     num_kpoints: int,
-) -> tuple[npt.NDArray[np.complex128], npt.NDArray[np.complex128], dict[tuple[str, int], list[int]]]:
+) -> tuple[
+    npt.NDArray[np.complex128],
+    npt.NDArray[np.complex128],
+    dict[tuple[str, int], list[int]],
+]:
     """Compute the Amn projection matrix using a pre-configured QEInputWFC.
 
     Like :func:`compute_amn` but accepts a QEInputWFC directly, which allows
     working with flat wfc directories from AiiDA dumps.
     """
-    atomic_wfc = AtomicWFC(atoms_dict=atoms_dict, lattice_vectors=lattice_vectors)
+    atomic_wfc = AtomicWFC(
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+    )
     species_list = list(bessel_files.keys())
     file_list = [str(bessel_files[s]) for s in species_list]
     atomic_wfc.load_atomic_wfcs(file_list)
@@ -158,7 +170,7 @@ def compute_amn_from_wfc(
     amn_list = []
     cmn_list = []
     for ik in range(1, num_kpoints + 1):
-        kpt, kvec, miller, wfcs = qe_wfc.get_wfc(ik)
+        kpt, _kvec, miller, wfcs = qe_wfc.get_wfc(ik)
         _, a_mn, c_mn = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
         amn_list.append(a_mn)
         cmn_list.append(c_mn)
@@ -192,9 +204,7 @@ def compute_projectability_per_channel(
     """
     result = {}
     for key, indices in channel_indices.items():
-        result[key] = np.sum(
-            np.conj(cmn[:, indices, :]) * amn[:, indices, :], axis=1
-        ).real
+        result[key] = np.sum(np.conj(cmn[:, indices, :]) * amn[:, indices, :], axis=1).real
     return result
 
 
@@ -279,9 +289,144 @@ def generate_fat_bands_plot(
     channel_proj = compute_projectability_per_channel(amn, cmn, channel_indices)
 
     plot_fat_bands(
-        band_plot_data, channel_proj,
-        emin=emin, emax=emax, filename=filename,
+        band_plot_data,
+        channel_proj,
+        emin=emin,
+        emax=emax,
+        filename=filename,
     )
+
+
+def _split_kpath_segments(xcoords: npt.NDArray[np.float64]) -> list[slice]:
+    """Split k-path into continuous segments at duplicate x-coordinates."""
+    break_indices = list(np.where(np.diff(xcoords) == 0)[0] + 1)
+    seg_slices = []
+    start = 0
+    for brk in break_indices:
+        seg_slices.append(slice(start, brk))
+        start = brk
+    seg_slices.append(slice(start, len(xcoords)))
+    return seg_slices
+
+
+def _get_channel_color(species: str, l: int) -> tuple[float, float, float]:
+    """Return RGB color for a (species, l) channel."""
+    _tab10 = plt.cm.tab10.colors
+    default_l_colors = {
+        0: _tab10[2],  # green (s)
+        1: _tab10[0],  # blue (p)
+        2: _tab10[4],  # purple (d)
+        3: _tab10[5],  # brown (f)
+    }
+    oxygen_l_colors = {
+        0: _tab10[1],  # orange (s)
+        1: _tab10[3],  # red (p)
+    }
+    palette = oxygen_l_colors if species == "O" else default_l_colors
+    return mcolors.to_rgb(palette.get(l, "#7f7f7f"))
+
+
+def _compute_vertex_offsets(
+    pts_disp: npt.NDArray[np.float64],
+    hw_disp: float,
+) -> npt.NDArray[np.float64]:
+    """Compute per-vertex perpendicular offset vectors in display space."""
+    dx_disp = np.diff(pts_disp[:, 0])
+    dy_disp = np.diff(pts_disp[:, 1])
+    seg_len = np.hypot(dx_disp, dy_disp)
+    seg_len = np.where(seg_len == 0, 1, seg_len)
+    seg_nx = -dy_disp / seg_len
+    seg_ny = dx_disp / seg_len
+
+    n_pts = len(pts_disp)
+    offsets = np.empty((n_pts, 2))
+
+    cos_first = max(abs(seg_ny[0]), 0.3)
+    cos_last = max(abs(seg_ny[-1]), 0.3)
+    offsets[0] = np.array([0, hw_disp / cos_first])
+    offsets[-1] = np.array([0, hw_disp / cos_last])
+
+    for j in range(1, n_pts - 1):
+        n_prev = np.array([seg_nx[j - 1], seg_ny[j - 1]])
+        n_next = np.array([seg_nx[j], seg_ny[j]])
+        bisector = n_prev + n_next
+        bisector_len = np.linalg.norm(bisector)
+        if bisector_len < 1e-12:
+            offsets[j] = hw_disp * n_prev
+        else:
+            bisector /= bisector_len
+            cos_half = max(np.dot(bisector, n_prev), 0.3)
+            offsets[j] = (hw_disp / cos_half) * bisector
+
+    return offsets
+
+
+def _build_fat_band_quads(
+    ax: Any,
+    x_fine: npt.NDArray[np.float64],
+    e_fine: npt.NDArray[np.float64],
+    p_fine: npt.NDArray[np.float64],
+    rgb: tuple[float, float, float],
+    half_w: float,
+) -> None:
+    """Build and add trapezoid quad PolyCollection for one channel segment."""
+    disp_transform = ax.transData
+    inv_transform = disp_transform.inverted()
+    pts_data = np.column_stack([x_fine, e_fine])
+    pts_disp = disp_transform.transform(pts_data)
+
+    origin_disp = disp_transform.transform([[0, 0]])[0]
+    hw_point = disp_transform.transform([[0, half_w]])[0]
+    hw_disp = abs(hw_point[1] - origin_disp[1])
+
+    offsets = _compute_vertex_offsets(pts_disp, hw_disp)
+
+    verts = []
+    face_colors = []
+    for i in range(len(x_fine) - 1):
+        corners_disp = np.array(
+            [
+                pts_disp[i] - offsets[i],
+                pts_disp[i] + offsets[i],
+                pts_disp[i + 1] + offsets[i + 1],
+                pts_disp[i + 1] - offsets[i + 1],
+            ]
+        )
+        corners_data = inv_transform.transform(corners_disp)
+        verts.append(corners_data.tolist())
+        alpha = (p_fine[i] + p_fine[i + 1]) / 2
+        face_colors.append((*rgb, float(alpha)))
+
+    pc = PolyCollection(
+        verts,
+        facecolors=face_colors,
+        edgecolors="none",
+        zorder=2,
+    )
+    ax.add_collection(pc)
+
+
+def _configure_proj_panel(ax_proj: Any) -> None:
+    """Configure the projectability side panel with nonlinear x-axis."""
+    tick_values = [0, 0.01, 0.1, 0.5, 0.9, 0.99, 1]
+    tick_labels = ["0", "0.01", "0.1", "0.5", "0.9", "0.99", "1"]
+    transformed_ticks = _proj_transform(np.array(tick_values))
+    ax_proj.set_xlim(transformed_ticks[0], transformed_ticks[-1])
+    ax_proj.set_xlabel("Projectability")
+    ax_proj.axvline(
+        _proj_transform(np.array([1.0]))[0],
+        color="k",
+        ls=":",
+        lw=0.5,
+    )
+    ax_proj.tick_params(
+        labelleft=False,
+        labelsize="x-small",
+        labelrotation=90,
+    )
+    ax_proj.xaxis.set_major_locator(FixedLocator(transformed_ticks))
+    ax_proj.xaxis.set_major_formatter(FixedFormatter(tick_labels))
+    ax_proj.xaxis.set_minor_locator(FixedLocator([]))
 
 
 def plot_fat_bands(
@@ -291,9 +436,10 @@ def plot_fat_bands(
     emax: float | None = None,
     filename: Path | None = None,
 ) -> None:
-    """Plot fat bands with per-(species, l) channel colors and alpha encoding projectability.
+    """Plot fat bands with per-(species, l) channel colors.
 
-    Non-oxygen species use red/green/blue for s/p/d; oxygen uses cyan/magenta/yellow.
+    Alpha encodes projectability. Non-oxygen species use
+    red/green/blue for s/p/d; oxygen uses cyan/magenta/yellow.
 
     Parameters
     ----------
@@ -309,7 +455,8 @@ def plot_fat_bands(
         If provided, save the figure to this path.
     """
     xcoords = band_plot_data.x
-    energies = band_plot_data.energies  # (num_kpoints, num_bands), already Fermi-shifted
+    # (num_kpoints, num_bands), already Fermi-shifted
+    energies = band_plot_data.energies
     labels = band_plot_data.labels
 
     padding = 0.025 * (energies.max() - energies.min())
@@ -320,8 +467,12 @@ def plot_fat_bands(
 
     # Create figure with two subplots sharing y-axis
     from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+
     fig, (ax, ax_proj) = plt.subplots(
-        1, 2, sharey=True, width_ratios=[4, 1],
+        1,
+        2,
+        sharey=True,
+        width_ratios=[4, 1],
         figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75),
         gridspec_kw={"wspace": 0.1},
     )
@@ -340,38 +491,9 @@ def plot_fat_bands(
     ax.set_xticks(label_positions)
     ax.set_xticklabels(label_strings)
 
-    # Split k-path into continuous segments at discontinuities (duplicate x-coords)
-    break_indices = list(np.where(np.diff(xcoords) == 0)[0] + 1)
-    seg_slices = []
-    start = 0
-    for brk in break_indices:
-        seg_slices.append(slice(start, brk))
-        start = brk
-    seg_slices.append(slice(start, len(xcoords)))
-
-    # Color palettes per species group
-    _tab10 = plt.cm.tab10.colors
-    DEFAULT_L_COLORS = {
-        0: _tab10[2],  # green (s)
-        1: _tab10[0],  # blue (p)
-        2: _tab10[4],  # purple (d)
-        3: _tab10[5],  # brown (f)
-    }
-    OXYGEN_L_COLORS = {
-        0: _tab10[1],  # orange (s)
-        1: _tab10[3],  # red (p)
-    }
-
-    def _get_color(species: str, l: int) -> tuple[float, float, float]:
-        palette = OXYGEN_L_COLORS if species == "O" else DEFAULT_L_COLORS
-        return mcolors.to_rgb(palette.get(l, "#7f7f7f"))
-
+    seg_slices = _split_kpath_segments(xcoords)
     channel_keys = sorted(channel_projectabilities.keys())
-
-    # Total projectability per band (sum over channels)
     total_proj = sum(channel_projectabilities.values())
-
-    # Half-width for fat-band quads in energy units
     half_w = (emax - emin) * 0.004
 
     num_bands = energies.shape[1]
@@ -387,106 +509,39 @@ def plot_fat_bands(
             k = min(3, len(x_seg) - 1)
             x_fine = np.linspace(x_seg[0], x_seg[-1], len(x_seg) * 3)
             e_fine = make_interp_spline(x_seg, e_seg, k=k)(x_fine)
-
-            # Thin background line
             ax.plot(x_fine, e_fine, color=(0.8, 0.8, 0.8), linewidth=0.5, zorder=1)
 
             for species, l in channel_keys:
                 proj = channel_projectabilities[(species, l)][seg_sl, band_idx]
-                p_fine = make_interp_spline(x_seg, proj, k=k)(x_fine)
-                p_fine = np.clip(p_fine, 0, 1)
+                p_fine = np.clip(make_interp_spline(x_seg, proj, k=k)(x_fine), 0, 1)
+                rgb = _get_channel_color(species, l)
+                _build_fat_band_quads(ax, x_fine, e_fine, p_fine, rgb, half_w)
 
-                # Build trapezoid quads with uniform perpendicular thickness.
-                verts = []
-                face_colors = []
-                rgb = _get_color(species, l)
-
-                # Work in display coordinates for correct aspect ratio
-                disp_transform = ax.transData
-                inv_transform = disp_transform.inverted()
-                pts_data = np.column_stack([x_fine, e_fine])
-                pts_disp = disp_transform.transform(pts_data)
-
-                # Per-segment unit normals in display space
-                dx_disp = np.diff(pts_disp[:, 0])
-                dy_disp = np.diff(pts_disp[:, 1])
-                seg_len = np.hypot(dx_disp, dy_disp)
-                seg_len = np.where(seg_len == 0, 1, seg_len)
-                seg_nx = -dy_disp / seg_len
-                seg_ny = dx_disp / seg_len
-
-                # half_w in data coords -> display coords
-                origin_disp = disp_transform.transform([[0, 0]])[0]
-                hw_point = disp_transform.transform([[0, half_w]])[0]
-                hw_disp = abs(hw_point[1] - origin_disp[1])
-
-                # Compute offset vectors at each vertex (bisector-based)
-                n_pts = len(x_fine)
-                offsets_disp = np.empty((n_pts, 2))
-
-                cos_first = abs(seg_ny[0]) if abs(seg_ny[0]) > 0.3 else 0.3
-                cos_last = abs(seg_ny[-1]) if abs(seg_ny[-1]) > 0.3 else 0.3
-                offsets_disp[0] = np.array([0, hw_disp / cos_first])
-                offsets_disp[-1] = np.array([0, hw_disp / cos_last])
-
-                for j in range(1, n_pts - 1):
-                    n_prev = np.array([seg_nx[j - 1], seg_ny[j - 1]])
-                    n_next = np.array([seg_nx[j], seg_ny[j]])
-                    bisector = n_prev + n_next
-                    bisector_len = np.linalg.norm(bisector)
-                    if bisector_len < 1e-12:
-                        offsets_disp[j] = hw_disp * n_prev
-                    else:
-                        bisector /= bisector_len
-                        cos_half = np.dot(bisector, n_prev)
-                        cos_half = max(cos_half, 0.3)
-                        offsets_disp[j] = (hw_disp / cos_half) * bisector
-
-                # Build quads using precomputed per-vertex offsets
-                for i in range(n_pts - 1):
-                    corners_disp = np.array([
-                        pts_disp[i] - offsets_disp[i],
-                        pts_disp[i] + offsets_disp[i],
-                        pts_disp[i + 1] + offsets_disp[i + 1],
-                        pts_disp[i + 1] - offsets_disp[i + 1],
-                    ])
-                    corners_data = inv_transform.transform(corners_disp)
-                    verts.append(corners_data.tolist())
-
-                    alpha = (p_fine[i] + p_fine[i + 1]) / 2
-                    face_colors.append((*rgb, float(alpha)))
-
-                pc = PolyCollection(verts, facecolors=face_colors, edgecolors="none", zorder=2)
-                ax.add_collection(pc)
-
-        # Side panel: scatter total projectability vs energy
         band_proj = total_proj[:, band_idx]
-        ax_proj.scatter(_proj_transform(band_proj), band_energies, s=0.5, color="k", alpha=1)
+        ax_proj.scatter(
+            _proj_transform(band_proj),
+            band_energies,
+            s=0.5,
+            color="k",
+            alpha=1,
+        )
 
-    # Legend: group by species, show species name + l label
+    # Legend
     legend_handles = []
     for species, l in channel_keys:
-        rgb = _get_color(species, l)
+        rgb = _get_channel_color(species, l)
         label = f"{species} {L_LABELS.get(l, '?')}"
-        legend_handles.append(
-            Line2D([0], [0], color=rgb, linewidth=2, label=label)
-        )
+        legend_handles.append(Line2D([0], [0], color=rgb, linewidth=2, label=label))
     ax.legend(
-        handles=legend_handles, loc="lower right", bbox_to_anchor=(1, 1),
-        fontsize="small", frameon=False, ncol=len(legend_handles),
+        handles=legend_handles,
+        loc="lower right",
+        bbox_to_anchor=(1, 1),
+        fontsize="small",
+        frameon=False,
+        ncol=len(legend_handles),
     )
 
-    # Configure side panel with nonlinear (shifted-logit) x-axis
-    tick_values = [0, 0.01, 0.1, 0.5, 0.9, 0.99, 1]
-    tick_labels = ["0", "0.01", "0.1", "0.5", "0.9", "0.99", "1"]
-    transformed_ticks = _proj_transform(np.array(tick_values))
-    ax_proj.set_xlim(transformed_ticks[0], transformed_ticks[-1])
-    ax_proj.set_xlabel("Projectability")
-    ax_proj.axvline(_proj_transform(np.array([1.0]))[0], color="k", ls=":", lw=0.5)
-    ax_proj.tick_params(labelleft=False, labelsize="x-small", labelrotation=90)
-    ax_proj.xaxis.set_major_locator(FixedLocator(transformed_ticks))
-    ax_proj.xaxis.set_major_formatter(FixedFormatter(tick_labels))
-    ax_proj.xaxis.set_minor_locator(FixedLocator([]))  # disable minor ticks
+    _configure_proj_panel(ax_proj)
 
     fig.subplots_adjust(left=0.15, bottom=0.15, right=0.95)
     if filename is not None:

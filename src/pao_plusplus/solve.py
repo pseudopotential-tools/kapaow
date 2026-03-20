@@ -2,14 +2,19 @@
 
 from contextlib import redirect_stdout
 from pathlib import Path
-from typing import Any
 
 import h5py
 import numpy as np
 from atomic_femdvr.pseudo_atomic import PseudoAtomicInput, PseudoAtomicResult, solve_pseudo_atomic
 from upf_tools import UPFDict
 
-from pao_plusplus.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis, Subshell, ordered_subshells
+from pao_plusplus.basis import (
+    AngularMomentum,
+    AtomicBasis,
+    PseudoatomicBasis,
+    Subshell,
+    ordered_subshells,
+)
 from pao_plusplus.extend import BasisExtension
 from pao_plusplus.io import read_wannier90_dat_file, write_wannier90_dat_file
 
@@ -31,8 +36,8 @@ def solve_pseudoatomic_problem(
 ) -> PseudoAtomicResult:
     """Solve the pseudoatomic problem for a given UPF file with a soft confinement potential.
 
-    Sets up the atomic-femdvr configuration, runs scf + optimize + nscf,
-    and exports wavefunctions to the working directory.
+    Set up the atomic-femdvr configuration, run scf + optimize + nscf,
+    and export wavefunctions to the working directory.
     """
     upf_dict = UPFDict.from_upf(upf_path)
 
@@ -68,12 +73,14 @@ def solve_pseudoatomic_problem(
         hdf5_file.unlink()
 
     # Solve the pseudoatomic problem
-    dat_filename = Path(upf_path.name).with_suffix(".dat") if dat_filename is None else dat_filename
-    with redirect_stdout(
-        open((working_dir / dat_filename).with_suffix(".log"), "w", encoding="utf-8")
-    ):
+    if dat_filename is None:
+        dat_filename = Path(upf_path.name).with_suffix(".dat")
+    log_path = (working_dir / dat_filename).with_suffix(".log")
+    with redirect_stdout(open(log_path, "w", encoding="utf-8")):
         result = solve_pseudo_atomic(
-            atomic_femdvr_config, task_list=("scf", "optimize", "nscf"), export_dir=str(working_dir)
+            atomic_femdvr_config,
+            task_list=("scf", "optimize", "nscf"),
+            export_dir=str(working_dir),
         )
 
     return result
@@ -106,22 +113,34 @@ def solve_and_export(
     else:
         pseudo_basis = atomic_basis.to_pseudoatomic_basis()
 
-    dat_filename = Path(upf_path.name).with_suffix(".dat") if dat_filename is None else dat_filename
+    if dat_filename is None:
+        dat_filename = Path(upf_path.name).with_suffix(".dat")
 
     result = solve_pseudoatomic_problem(
-        upf_path, rc=rc, ri_factor=ri_factor, extension=extension,
-        working_dir=working_dir, dat_filename=dat_filename,
+        upf_path,
+        rc=rc,
+        ri_factor=ri_factor,
+        extension=extension,
+        working_dir=working_dir,
+        dat_filename=dat_filename,
         atomic_femdvr_config=atomic_femdvr_config,
     )
 
     # Regenerate the dat file to only include the desired orbitals
-    tmp_dat_file = max(working_dir.glob("*_qe.dat"), key=lambda f: f.stat().st_mtime)
+    tmp_dat_file = max(
+        working_dir.glob("*_qe.dat"),
+        key=lambda f: f.stat().st_mtime,
+    )
     x, r, l_values, orbitals = read_wannier90_dat_file(tmp_dat_file)
     selected_orbitals = [orbitals[i] for i in _find_matches(l_values, pseudo_basis.l_values)]
 
     # Write to the requested dat_filename
     write_wannier90_dat_file(
-        working_dir / dat_filename, x, r, pseudo_basis.l_values, np.array(selected_orbitals)
+        working_dir / dat_filename,
+        x,
+        r,
+        pseudo_basis.l_values,
+        np.array(selected_orbitals),
     )
 
     # Filter the Bessel HDF5 file to only include the desired number of orbitals per l
@@ -132,15 +151,22 @@ def solve_and_export(
         stable_bessel_path = (working_dir / dat_filename).with_suffix(".h5")
         if stable_bessel_path != bessel_path:
             import shutil
+
             shutil.copy2(bessel_path, stable_bessel_path)
             bessel_path = stable_bessel_path
 
     return result, bessel_path
 
 
-def _filter_bessel_file(working_dir: Path, pseudo_basis: PseudoatomicBasis) -> Path | None:
+def _filter_bessel_file(
+    working_dir: Path,
+    pseudo_basis: PseudoatomicBasis,
+) -> Path | None:
     """Rewrite the Bessel HDF5 file to only include the desired orbitals per l channel."""
-    bessel_files = sorted(working_dir.glob("*_bessel.h5"), key=lambda f: f.stat().st_mtime)
+    bessel_files = sorted(
+        working_dir.glob("*_bessel.h5"),
+        key=lambda f: f.stat().st_mtime,
+    )
     if not bessel_files:
         return None
     bessel_file = bessel_files[-1]
@@ -174,7 +200,9 @@ def compute_spread(
     dat_file: Path,
     atomic_basis: AtomicBasis,
 ) -> float:
-    """Compute the wavefunction spread Ω = ∫ dr r⁴ |R_nl(r)|² for the outermost subshell.
+    r"""Compute the wavefunction spread for the outermost subshell.
+
+    Uses :math:`\Omega = \int dr\, r^4 |R_{nl}(r)|^2`.
 
     Parameters
     ----------
@@ -211,13 +239,15 @@ def compute_spread(
     n_per_l = atomic_basis.to_pseudoatomic_basis().number_of_orbitals
     n_target = n_per_l.get(outermost.l, 0)
     if n_target == 0 or n_target > len(matching_indices):
-        raise ValueError(f"Expected {n_target} orbital(s) with l={target_l}, found {len(matching_indices)}.")
+        raise ValueError(
+            f"Expected {n_target} orbital(s) with l={target_l}, found {len(matching_indices)}."
+        )
     idx = matching_indices[n_target - 1]
-    R_nl = orbitals[idx]
+    r_nl = orbitals[idx]
 
-    # Ω = ∫ dr r⁴ |R_nl(r)|²
-    integrand = r_arr**4 * R_nl**2
-    return float(np.trapz(integrand, r_arr))
+    # Omega = integral dr r^4 |R_nl(r)|^2
+    integrand = r_arr**4 * r_nl**2
+    return float(np.trapezoid(integrand, r_arr))
 
 
 def get_outermost_wavefunction(
@@ -228,7 +258,7 @@ def get_outermost_wavefunction(
 
     Returns
     -------
-    r, R_nl
+    r, r_nl
         The radial grid and corresponding wavefunction values.
     """
     _, r, l_values, orbitals = read_wannier90_dat_file(dat_file)
@@ -250,7 +280,9 @@ def get_outermost_wavefunction(
     n_per_l = atomic_basis.to_pseudoatomic_basis().number_of_orbitals
     n_target = n_per_l.get(outermost.l, 0)
     if n_target == 0 or n_target > len(matching_indices):
-        raise ValueError(f"Expected {n_target} orbital(s) with l={target_l}, found {len(matching_indices)}.")
+        raise ValueError(
+            f"Expected {n_target} orbital(s) with l={target_l}, found {len(matching_indices)}."
+        )
     idx = matching_indices[n_target - 1]
 
     return r_arr, orbitals[idx]
@@ -264,6 +296,6 @@ def _find_matches(values: list[int], desired_values: list[int]) -> list[int]:
             if value == desired_value and i not in matches:
                 matches.append(i)
                 break
-    if not len(matches) == len(desired_values):
+    if len(matches) != len(desired_values):
         raise ValueError("Could not find all desired values in the provided list.")
     return matches

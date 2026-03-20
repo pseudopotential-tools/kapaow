@@ -1,5 +1,6 @@
 """Projectability module for pao_plusplus."""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,17 +13,24 @@ from qe_wavefunctions.qe_projections import compute_atomic_projections
 
 from pao_plusplus.fat_bands import build_atoms_dict
 
+logger = logging.getLogger(__name__)
+
 
 def _make_qe_input_wfc(
-    wfc_dir: Path, lattice_vectors: npt.NDArray[np.float64]
+    wfc_dir: Path,
+    lattice_vectors: npt.NDArray[np.float64],
 ) -> QEInputWFC:
     """Create a QEInputWFC that reads wfcN.hdf5 directly from wfc_dir.
 
-    QEInputWFC normally looks in ``outdir/prefix.save/``, but AiiDA dumps
-    put wfc files flat in the outputs directory. We override ``outdir``
-    after construction to point directly at wfc_dir.
+    QEInputWFC normally looks in ``outdir/prefix.save/``, but AiiDA
+    dumps put wfc files flat in the outputs directory.  We override
+    ``outdir`` after construction to point directly at wfc_dir.
     """
-    qe_wfc = QEInputWFC(outdir=str(wfc_dir), prefix="dummy", lattice_vectors=lattice_vectors)
+    qe_wfc = QEInputWFC(
+        outdir=str(wfc_dir),
+        prefix="dummy",
+        lattice_vectors=lattice_vectors,
+    )
     qe_wfc.outdir = str(wfc_dir)
     return qe_wfc
 
@@ -98,7 +106,8 @@ def compute_projectability_cached(
     changes) are reloaded.
     """
     atomic_wfc = AtomicWFC(
-        atoms_dict=cached.atoms_dict, lattice_vectors=cached.lattice_vectors
+        atoms_dict=cached.atoms_dict,
+        lattice_vectors=cached.lattice_vectors,
     )
     species_list = list(bessel_files.keys())
     file_list = [str(bessel_files[s]) for s in species_list]
@@ -106,7 +115,12 @@ def compute_projectability_cached(
 
     proj_matrices = []
     for kpt, miller, wfcs in cached.kpoint_data:
-        _, a_mn, c_mn = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
+        _, a_mn, c_mn = compute_atomic_projections(
+            atomic_wfc,
+            kpt,
+            miller,
+            wfcs,
+        )
         proj_matrices.append((np.conj(c_mn).T @ a_mn).real)
 
     return projectability_score(proj_matrices, num_target_bands, cached.kpoint_weights)
@@ -116,7 +130,7 @@ def proj_matrices_from_amn(
     amn: npt.NDArray[np.complex128],
     cmn: npt.NDArray[np.complex128],
 ) -> list[npt.NDArray[np.float64]]:
-    """Compute Re(C†A) matrices at each k-point from stacked Amn/Cmn arrays.
+    r"""Compute Re(C^dag A) matrices at each k-point from stacked Amn/Cmn arrays.
 
     Parameters
     ----------
@@ -128,7 +142,7 @@ def proj_matrices_from_amn(
     Returns
     -------
     list
-        List of Re(C†A) matrices, one per k-point.
+        List of Re(C^dag A) matrices, one per k-point.
     """
     return [(np.conj(cmn[ik]).T @ amn[ik]).real for ik in range(amn.shape[0])]
 
@@ -138,13 +152,13 @@ def projectability_eigenvalues(
 ) -> npt.NDArray[np.float64]:
     """Compute gauge-invariant projectability eigenvalues at each k-point.
 
-    Diagonalises ``Re(C†A)`` at each k-point and returns eigenvalues
+    Diagonalises ``Re(C^dag A)`` at each k-point and returns eigenvalues
     sorted in descending order.
 
     Parameters
     ----------
     proj_matrices
-        List of Re(C†A) matrices, one per k-point, each of shape
+        List of Re(C^dag A) matrices, one per k-point, each of shape
         (num_bands, num_bands).
 
     Returns
@@ -154,8 +168,8 @@ def projectability_eigenvalues(
         descending at each k-point.
     """
     result = []
-    for P in proj_matrices:
-        eigvals = np.sort(np.linalg.eigvalsh(P))[::-1]
+    for p_mat in proj_matrices:
+        eigvals = np.sort(np.linalg.eigvalsh(p_mat))[::-1]
         result.append(eigvals)
     return np.array(result)
 
@@ -165,12 +179,12 @@ def projectability_score(
     num_target_bands: int,
     kpoint_weights: npt.NDArray[np.float64],
 ) -> float:
-    """Calculate the weighted projectability score from eigenvalues of Re(C†A).
+    """Calculate the weighted projectability score from eigenvalues of Re(C^dag A).
 
     Parameters
     ----------
     proj_matrices
-        List of Re(C†A) matrices, one per k-point, each of shape
+        List of Re(C^dag A) matrices, one per k-point, each of shape
         (num_bands, num_bands).
     num_target_bands
         Number of bands expected to be well-described by the PAO basis.
@@ -181,12 +195,12 @@ def projectability_score(
     -------
     float
         Weighted average of the ``num_target_bands`` largest eigenvalues
-        of Re(C†A) across all k-points.
+        of Re(C^dag A) across all k-points.
     """
     eigvals = projectability_eigenvalues(proj_matrices)
     weights = kpoint_weights / np.sum(kpoint_weights)
     total = 0.0
-    for ev, w in zip(eigvals, weights):
+    for ev, w in zip(eigvals, weights, strict=True):
         total += w * np.sum(ev[:num_target_bands])
     return float(total / num_target_bands)
 
@@ -224,10 +238,15 @@ def compute_projectability(
     atoms_dict, lattice_vectors = build_atoms_dict(pwi_file)
 
     qe_wfc = QEInputWFC(
-        outdir=str(outdir), prefix=prefix, lattice_vectors=lattice_vectors
+        outdir=str(outdir),
+        prefix=prefix,
+        lattice_vectors=lattice_vectors,
     )
 
-    atomic_wfc = AtomicWFC(atoms_dict=atoms_dict, lattice_vectors=lattice_vectors)
+    atomic_wfc = AtomicWFC(
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+    )
     species_list = list(bessel_files.keys())
     file_list = [str(bessel_files[s]) for s in species_list]
     atomic_wfc.load_atomic_wfcs(file_list)
@@ -240,7 +259,12 @@ def compute_projectability(
             kpt, _, miller, wfcs = qe_wfc.get_wfc(ik)
         except FileNotFoundError:
             break
-        _, a_mn, c_mn = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
+        _, a_mn, c_mn = compute_atomic_projections(
+            atomic_wfc,
+            kpt,
+            miller,
+            wfcs,
+        )
         proj_matrices.append((np.conj(c_mn).T @ a_mn).real)
         ik += 1
 
@@ -254,7 +278,7 @@ def check_onsite_overlap(
     prefix: str,
     bessel_files: dict[str, Path],
 ) -> None:
-    """Check that (1/Nk) sum_k S(k) ≈ I on each atomic site's orbital block.
+    r"""Check that (1/Nk) sum_k S(k) ~ I on each atomic site's orbital block.
 
     For properly normalized atomic orbitals, the on-site block of the
     k-averaged overlap matrix should be the identity.
@@ -262,10 +286,15 @@ def check_onsite_overlap(
     atoms_dict, lattice_vectors = build_atoms_dict(pwi_file)
 
     qe_wfc = QEInputWFC(
-        outdir=str(outdir), prefix=prefix, lattice_vectors=lattice_vectors
+        outdir=str(outdir),
+        prefix=prefix,
+        lattice_vectors=lattice_vectors,
     )
 
-    atomic_wfc = AtomicWFC(atoms_dict=atoms_dict, lattice_vectors=lattice_vectors)
+    atomic_wfc = AtomicWFC(
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+    )
     species_list = list(bessel_files.keys())
     file_list = [str(bessel_files[s]) for s in species_list]
     atomic_wfc.load_atomic_wfcs(file_list)
@@ -279,14 +308,20 @@ def check_onsite_overlap(
             kpt, _, miller, wfcs = qe_wfc.get_wfc(ik)
         except FileNotFoundError:
             break
-        s_mn, _, _ = compute_atomic_projections(atomic_wfc, kpt, miller, wfcs)
+        s_mn, _, _ = compute_atomic_projections(
+            atomic_wfc,
+            kpt,
+            miller,
+            wfcs,
+        )
         if s_sum is None:
             s_sum = np.zeros_like(s_mn)
         s_sum += s_mn
         num_kpoints += 1
         ik += 1
 
-    assert s_sum is not None
+    if s_sum is None:
+        raise RuntimeError("No k-points were found; s_sum is None.")
     s_avg = s_sum / num_kpoints
 
     # Extract on-site blocks using start_indices, skipping empty orbitals
@@ -297,12 +332,23 @@ def check_onsite_overlap(
         for iat in range(atomic_wfc.num_atoms[ispec]):
             atom_idx = sum(atomic_wfc.num_atoms[:ispec]) + iat
             base = atomic_wfc.start_indices[atom_idx]
-            block = s_avg[base:base + norb_per_atom, base:base + norb_per_atom]
+            end = base + norb_per_atom
+            block = s_avg[base:end, base:end]
             diag = np.diag(block).real
             # Mask out empty orbital slots (nan from zero-norm orbitals)
             active = ~np.isnan(diag)
             active_block = block[np.ix_(active, active)]
             identity = np.eye(active_block.shape[0])
             err = np.max(np.abs(active_block - identity))
-            print(f"{species} atom {iat}: max|S_onsite - I| = {err:.6e} ({active.sum()}/{norb_per_atom} active orbitals)")
-            print(f"  diagonal: {np.diag(active_block).real}")
+            logger.info(
+                "%s atom %d: max|S_onsite - I| = %.6e (%d/%d active orbitals)",
+                species,
+                iat,
+                err,
+                active.sum(),
+                norb_per_atom,
+            )
+            logger.info(
+                "  diagonal: %s",
+                np.diag(active_block).real,
+            )

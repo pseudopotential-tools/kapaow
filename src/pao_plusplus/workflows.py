@@ -63,8 +63,7 @@ def _find_nscf_calc_dir(dump_dir: Path) -> Path:
         Path to the NSCF calculation directory (containing inputs/ and outputs/).
     """
     matches = [
-        d for d in dump_dir.rglob("*PwCalculation")
-        if any("nscf" in p.name for p in d.parents)
+        d for d in dump_dir.rglob("*PwCalculation") if any("nscf" in p.name for p in d.parents)
     ]
     if not matches:
         raise FileNotFoundError(
@@ -137,7 +136,6 @@ def run_qe_workflow(
         return cached
 
     from aiida import orm
-
     from aiida_koopmans.workgraphs.pw import PwScfNscfTask
     from koopmans.aiida.dumping import dump_workgraph
     from koopmans.aiida.progress import run_with_progress
@@ -236,7 +234,8 @@ def _find_bands_calc_dir(dump_dir: Path) -> Path:
     SCF sub-step which also lives under the top-level PwBandsWorkChain.
     """
     matches = [
-        d for d in dump_dir.rglob("*PwCalculation")
+        d
+        for d in dump_dir.rglob("*PwCalculation")
         if any("bands" in p.name and "PwBaseWorkChain" in p.name for p in d.parents)
     ]
     if not matches:
@@ -302,7 +301,6 @@ def run_bands_workflow(
         return cached
 
     from aiida import orm
-
     from aiida_koopmans.workgraphs.pw import PwBandsTaskViaBuilder
     from koopmans.aiida.dumping import dump_workgraph
     from koopmans.aiida.progress import run_with_progress
@@ -352,7 +350,9 @@ def run_bands_workflow(
     # Extract band plot data from BandsData node
     bands_node = process_node.outputs.band_structure
     plot_info = bands_node._get_bandplot_data(
-        cartesian=True, prettify_format="latex_seekpath", join_symbol="|",
+        cartesian=True,
+        prettify_format="latex_seekpath",
+        join_symbol="|",
         y_origin=fermi_energy,
     )
     band_x = np.array(plot_info["x"])
@@ -375,16 +375,22 @@ def run_bands_workflow(
 
     # Write cache with paths and labels for fast reload
     cache_file = working_dir / _BANDS_CACHE_FILE
-    cache_file.write_text(json.dumps({
-        "bands_calc_dir": str(bands_calc_dir.relative_to(working_dir)),
-        "output_dir": str(output_dir.relative_to(working_dir)),
-        "fermi_energy": fermi_energy,
-        "band_labels": band_labels,
-        "bands_kpoints_pk": bands_kpoints_pk,
-    }))
+    cache_file.write_text(
+        json.dumps(
+            {
+                "bands_calc_dir": str(bands_calc_dir.relative_to(working_dir)),
+                "output_dir": str(output_dir.relative_to(working_dir)),
+                "fermi_energy": fermi_energy,
+                "band_labels": band_labels,
+                "bands_kpoints_pk": bands_kpoints_pk,
+            }
+        )
+    )
 
     band_plot_data = BandPlotData(
-        x=band_x, energies=band_energies, labels=band_labels,
+        x=band_x,
+        energies=band_energies,
+        labels=band_labels,
     )
 
     return BandsWorkflowResult(
@@ -441,7 +447,6 @@ def get_kpoint_path(structure_file: Path) -> dict[str, Any]:
     from aiida_quantumespresso.calculations.functions.seekpath_structure_analysis import (
         seekpath_structure_analysis,
     )
-
     from koopmans.aiida.setup import load_koopmans_profile
 
     load_koopmans_profile()
@@ -484,13 +489,12 @@ def run_wannierize_workflow(
     Returns:
         The AiiDA process node for the completed workflow.
     """
+    from aiida_koopmans.workgraphs.wannier90 import Wannier90TaskViaBuilder
     from aiida_quantumespresso.common.types import ElectronicType
     from aiida_wannier90_workflows.common.types import (
         WannierFrozenType,
         WannierProjectionType,
     )
-
-    from aiida_koopmans.workgraphs.wannier90 import Wannier90TaskViaBuilder
     from koopmans.aiida.dumping import dump_workgraph
     from koopmans.aiida.progress import run_with_progress
     from koopmans.aiida.setup import load_koopmans_profile
@@ -516,6 +520,7 @@ def run_wannierize_workflow(
     bands_kpoints_node = None
     if bands_kpoints_pk is not None:
         from aiida import orm as _orm
+
         bands_kpoints_node = _orm.load_node(bands_kpoints_pk)
 
     overrides: dict[str, Any] = {
@@ -581,6 +586,6 @@ def _load_codes(
         try:
             codes[name] = orm.load_code(f"{name}@localhost")
         except Exception:
-            pass
+            logging.debug("Optional code %s not available", name)
 
     return codes

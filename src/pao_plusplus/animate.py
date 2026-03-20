@@ -75,22 +75,30 @@ def generate_animation(
 
     # Build a closed loop in (mid, width) space
     n = frames_per_segment
-    mid = ([max_r_mid] * n
-           + np.linspace(max_r_mid, min_r_mid, n).tolist()
-           + [min_r_mid] * n
-           + np.linspace(min_r_mid, max_r_mid, n).tolist())
-    width = (np.linspace(min_width, max_width, n).tolist()
-             + [max_width] * n
-             + np.linspace(max_width, min_width, n).tolist()
-             + [min_width] * n)
+    mid = (
+        [max_r_mid] * n
+        + np.linspace(max_r_mid, min_r_mid, n).tolist()
+        + [min_r_mid] * n
+        + np.linspace(min_r_mid, max_r_mid, n).tolist()
+    )
+    width = (
+        np.linspace(min_width, max_width, n).tolist()
+        + [max_width] * n
+        + np.linspace(max_width, min_width, n).tolist()
+        + [min_width] * n
+    )
 
     working_dir.mkdir(parents=True, exist_ok=True)
     frames = []
 
     # Generate a reference (unconfined) dat file
     solve_and_export(
-        upf_path, rc=DEFAULT_RC_MAX, ri_factor=DEFAULT_RI_FACTOR_MAX, extension=extension,
-        working_dir=working_dir, dat_filename=f"{element}_reference.dat",
+        upf_path,
+        rc=DEFAULT_RC_MAX,
+        ri_factor=DEFAULT_RI_FACTOR_MAX,
+        extension=extension,
+        working_dir=working_dir,
+        dat_filename=f"{element}_reference.dat",
         atomic_femdvr_config=atomic_femdvr_config,
     )
     ref_dat = working_dir / f"{element}_reference.dat"
@@ -102,12 +110,17 @@ def generate_animation(
         dat_filename = f"{element}_frame_{i:03d}.dat"
 
         result, _ = solve_and_export(
-            upf_path, rc=rc, ri_factor=ri_factor, extension=extension,
-            working_dir=working_dir, dat_filename=dat_filename,
+            upf_path,
+            rc=rc,
+            ri_factor=ri_factor,
+            extension=extension,
+            working_dir=working_dir,
+            dat_filename=dat_filename,
             atomic_femdvr_config=atomic_femdvr_config,
         )
 
-        # Determine per-orbital colors: blue for original, tab:orange for added, red if shift too large
+        # Determine per-orbital colors: blue for original, tab:orange for added,
+        # red if shift too large
         _, _, l_values, _ = read_wannier90_dat_file(working_dir / dat_filename)
         energy_shifts = result.energy_shifts
         confined_colors = []
@@ -129,10 +142,19 @@ def generate_animation(
                 ref_colors.append(color_original)
             l_counter[l] = n_l + 1
 
-        axes = plot_wannier90_dat_file(working_dir / dat_filename, fix_sign=True, colors=confined_colors,
-                                       reference_orbitals=ref_orbitals)
-        plot_wannier90_dat_file(ref_dat, axes=axes, linestyle="--", colors=ref_colors,
-                                reference_orbitals=ref_orbitals)
+        axes = plot_wannier90_dat_file(
+            working_dir / dat_filename,
+            fix_sign=True,
+            colors=confined_colors,
+            reference_orbitals=ref_orbitals,
+        )
+        plot_wannier90_dat_file(
+            ref_dat,
+            axes=axes,
+            linestyle="--",
+            colors=ref_colors,
+            reference_orbitals=ref_orbitals,
+        )
 
         for j, ax in enumerate(axes):
             ax.set_xlim([0, 20])
@@ -141,14 +163,23 @@ def generate_animation(
             ax2 = ax.twinx()
             r_start = rc * ri_factor
             r = np.linspace(r_start, rc, 100)
-            V = barrier_height * np.sin((r - r_start) / (rc - r_start) * (np.pi / 2)) ** 2
+            v_conf = (
+                barrier_height
+                * np.sin(
+                    (r - r_start) / (rc - r_start) * (np.pi / 2),
+                )
+                ** 2
+            )
             rmax = ax.get_xlim()[1]
             ax2.fill_between(
-                r.tolist() + [rmax], 0, V.tolist() + [barrier_height],
-                color=color_potential, alpha=0.3,
+                [*r.tolist(), rmax],
+                0,
+                [*v_conf.tolist(), barrier_height],
+                color=color_potential,
+                alpha=0.3,
             )
             ax2.set_ylim([0, barrier_height])
-            ax2.set_ylabel('confining potential (Ha)')
+            ax2.set_ylabel("confining potential (Ha)")
             # Legend on top subplot only
             if j == 0:
                 from matplotlib.legend_handler import HandlerBase
@@ -156,33 +187,63 @@ def generate_animation(
 
                 class _SolidDashedHandler(HandlerBase):
                     """Draw a solid line above a dashed line, like an equals sign."""
+
                     def __init__(self, color: str):
                         super().__init__()
                         self._color = color
 
-                    def create_artists(self, legend, orig_handle, xdescent, ydescent,
-                                       width, height, fontsize, trans):
+                    def create_artists(
+                        self,
+                        legend,
+                        orig_handle,
+                        xdescent,
+                        ydescent,
+                        width,
+                        height,
+                        fontsize,
+                        trans,
+                    ):
                         spacing = height * 0.35
-                        solid = Line2D([xdescent, xdescent + width],
-                                       [height / 2 + spacing, height / 2 + spacing],
-                                       color=self._color, linestyle="-",
-                                       lw=1.5, transform=trans)
-                        dashed = Line2D([xdescent, xdescent + width],
-                                        [height / 2 - spacing, height / 2 - spacing],
-                                        color=self._color, linestyle="--",
-                                        lw=1.5, transform=trans)
+                        solid = Line2D(
+                            [xdescent, xdescent + width],
+                            [height / 2 + spacing, height / 2 + spacing],
+                            color=self._color,
+                            linestyle="-",
+                            lw=1.5,
+                            transform=trans,
+                        )
+                        dashed = Line2D(
+                            [xdescent, xdescent + width],
+                            [height / 2 - spacing, height / 2 - spacing],
+                            color=self._color,
+                            linestyle="--",
+                            lw=1.5,
+                            transform=trans,
+                        )
                         return [solid, dashed]
 
-                dummy_original = Line2D([], [], label="preexisting PAOs (confined / unconfined)")
-                dummy_added = Line2D([], [], label="added PAO (confined / unconfined)")
+                dummy_original = Line2D(
+                    [],
+                    [],
+                    label="preexisting PAOs (confined / unconfined)",
+                )
+                dummy_added = Line2D(
+                    [],
+                    [],
+                    label="added PAO (confined / unconfined)",
+                )
                 ax.legend(
                     handles=[dummy_original, dummy_added],
                     handler_map={
                         dummy_original: _SolidDashedHandler(color_original),
                         dummy_added: _SolidDashedHandler(color_added),
                     },
-                    loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=1, fontsize=6,
-                    handlelength=4, frameon=False,
+                    loc="lower right",
+                    bbox_to_anchor=(1.0, 1.0),
+                    ncol=1,
+                    fontsize=6,
+                    handlelength=4,
+                    frameon=False,
                 )
 
         axes[-1].set_xlabel("$r$ (Bohr)")
@@ -198,7 +259,10 @@ def generate_animation(
     # Assemble GIF
     images = [Image.open(f) for f in frames]
     images[0].save(
-        output, save_all=True, append_images=images[1:],
-        duration=100, loop=0,
+        output,
+        save_all=True,
+        append_images=images[1:],
+        duration=100,
+        loop=0,
     )
     return output

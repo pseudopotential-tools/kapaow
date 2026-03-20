@@ -34,8 +34,7 @@ def format_wannier90_dat(
     lines.append(" ".join(str(l) for l in l_values))
     for x_value, r_value, orbital_values in zip(x, r, orbitals.T, strict=True):
         lines.append(
-            f"{x_value:11.8e} {r_value:11.8e} "
-            + " ".join(f"{o:11.8e}" for o in orbital_values)
+            f"{x_value:11.8e} {r_value:11.8e} " + " ".join(f"{o:11.8e}" for o in orbital_values)
         )
     return "\n".join(lines) + "\n"
 

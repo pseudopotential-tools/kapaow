@@ -1,21 +1,30 @@
 """Pareto front analysis of spread vs energy shift for varying rc and ri_factor."""
 
 import json
+import logging
 from pathlib import Path
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from upf_tools import UPFDict
-
 from atomic_femdvr.pseudo_atomic import ConvergenceError
+from upf_tools import UPFDict
 
 from pao_plusplus.basis import AngularMomentum, AtomicBasis
 from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
 from pao_plusplus.optimize import ATOMIC_FEMDVR_PATCHES
 from pao_plusplus.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
-from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN, DEFAULT_RI_FACTOR_MAX, DEFAULT_RI_FACTOR_MIN
-from pao_plusplus.solve import compute_spread, get_outermost_wavefunction, solve_pseudoatomic_problem
+from pao_plusplus.solve import (
+    DEFAULT_RC_MAX,
+    DEFAULT_RC_MIN,
+    DEFAULT_RI_FACTOR_MAX,
+    DEFAULT_RI_FACTOR_MIN,
+    compute_spread,
+    get_outermost_wavefunction,
+    solve_pseudoatomic_problem,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _evaluate_point(
@@ -50,12 +59,20 @@ def _evaluate_point(
             output_wfc_bessel=False,
         )
     except ConvergenceError:
-        print(f"  SCF did not converge for rc={rc:.4f}, ri_factor={ri_factor:.4f}")
+        logger.info(
+            "  SCF did not converge for rc=%.4f, ri_factor=%.4f",
+            rc,
+            ri_factor,
+        )
         return None
 
     energy_shifts = result.energy_shifts
     if energy_shifts is None:
-        print(f"  No energy shifts for rc={rc:.4f}, ri_factor={ri_factor:.4f}")
+        logger.info(
+            "  No energy shifts for rc=%.4f, ri_factor=%.4f",
+            rc,
+            ri_factor,
+        )
         return None
 
     # Collect shifts for only the original basis orbitals
@@ -69,13 +86,71 @@ def _evaluate_point(
         return None
     max_shift = max(abs(e) for e in original_shifts)
 
-    dat_files = [f for f in point_dir.glob(f"{element}_*_qe.dat")]
+    dat_files = list(point_dir.glob(f"{element}_*_qe.dat"))
     if not dat_files:
         return None
     dat_file = max(dat_files, key=lambda f: f.stat().st_mtime)
 
     spread = compute_spread(dat_file, atomic_basis)
     return spread, max_shift, dat_file
+
+
+def _accumulate_result(
+    out: tuple[float, float, Path] | None,
+    rc: float,
+    ri_factor: float,
+    spreads: list[float],
+    max_energy_shifts: list[float],
+    dat_files: list[Path],
+    metadata: list[dict],
+    refined: bool = False,
+) -> None:
+    """Append a successful evaluation result to the accumulator lists."""
+    if out is None:
+        return
+    spread, max_shift, dat_file = out
+    spreads.append(spread)
+    max_energy_shifts.append(max_shift)
+    dat_files.append(dat_file)
+    metadata.append({"rc": rc, "ri_factor": ri_factor, "refined": refined})
+    if refined:
+        logger.info(
+            "    -> spread=%.4f, max_energy_shift=%.6f",
+            spread,
+            max_shift,
+        )
+    else:
+        logger.info(
+            "  rc=%.4f, ri_factor=%.4f: spread=%.4f, max_energy_shift=%.6f",
+            rc,
+            ri_factor,
+            spread,
+            max_shift,
+        )
+
+
+def _annotate_confinement(
+    metadata: list[dict],
+    dat_files: list[Path],
+    atomic_basis: AtomicBasis,
+) -> None:
+    """Annotate each metadata entry with whether its outermost wfc is modified by confinement."""
+    ref_idx = max(
+        range(len(metadata)),
+        key=lambda i: (metadata[i]["rc"], metadata[i]["ri_factor"]),
+    )
+    ref_r, ref_wfc = get_outermost_wavefunction(dat_files[ref_idx], atomic_basis)
+    for i in range(len(metadata)):
+        r_i, wfc_i = get_outermost_wavefunction(dat_files[i], atomic_basis)
+        ref_wfc_interp = np.interp(r_i, ref_r, ref_wfc)
+        overlap = float(np.trapezoid(wfc_i * ref_wfc_interp * r_i**2, r_i))
+        norm_i = float(np.trapezoid(wfc_i**2 * r_i**2, r_i))
+        norm_ref = float(np.trapezoid(ref_wfc_interp**2 * r_i**2, r_i))
+        if norm_i > 0 and norm_ref > 0:
+            fidelity = overlap**2 / (norm_i * norm_ref)
+            metadata[i]["modified_by_confinement"] = fidelity < 0.9999
+        else:
+            metadata[i]["modified_by_confinement"] = True
 
 
 def compute_pareto_front(
@@ -109,7 +184,11 @@ def compute_pareto_front(
     if rc_values is None:
         rc_values = np.linspace(DEFAULT_RC_MIN, DEFAULT_RC_MAX, 11).tolist()
     if ri_factor_values is None:
-        ri_factor_values = np.linspace(DEFAULT_RI_FACTOR_MIN, DEFAULT_RI_FACTOR_MAX, 20).tolist()
+        ri_factor_values = np.linspace(
+            DEFAULT_RI_FACTOR_MIN,
+            DEFAULT_RI_FACTOR_MAX,
+            20,
+        ).tolist()
 
     upf_dict = UPFDict.from_upf(upf_path)
     element = upf_dict["header"]["element"].strip()
@@ -130,59 +209,64 @@ def compute_pareto_front(
     for rc in rc_values:
         for ri_factor in ri_factor_values:
             out = _evaluate_point(
-                upf_path, rc, ri_factor, extension, element, atomic_basis,
-                original_basis, working_dir,
+                upf_path,
+                rc,
+                ri_factor,
+                extension,
+                element,
+                atomic_basis,
+                original_basis,
+                working_dir,
             )
-            if out is not None:
-                spread, max_shift, dat_file = out
-                spreads.append(spread)
-                max_energy_shifts.append(max_shift)
-                dat_files.append(dat_file)
-                metadata.append({"rc": rc, "ri_factor": ri_factor, "refined": False})
-                print(f"  rc={rc:.4f}, ri_factor={ri_factor:.4f}: "
-                      f"spread={spread:.4f}, max_energy_shift={max_shift:.6f}")
+            _accumulate_result(
+                out,
+                rc,
+                ri_factor,
+                spreads,
+                max_energy_shifts,
+                dat_files,
+                metadata,
+            )
 
     # Refinement pass: for each kink, mix the two endpoints for a new trial
     triplets = find_kink_triplets(spreads, max_energy_shifts, loglog=loglog)
     if triplets:
-        print(f"\nRefining {len(triplets)} kink(s)...")
+        logger.info("Refining %d kink(s)...", len(triplets))
     for i_a, _i_b, i_c in triplets:
         rc_new = 0.5 * (metadata[i_a]["rc"] + metadata[i_c]["rc"])
         ri_new = 0.5 * (metadata[i_a]["ri_factor"] + metadata[i_c]["ri_factor"])
-        print(f"  Trial: rc={rc_new:.4f}, ri_factor={ri_new:.4f} "
-              f"(mix of rc={metadata[i_a]['rc']:.4f}/{metadata[i_c]['rc']:.4f}, "
-              f"ri={metadata[i_a]['ri_factor']:.4f}/{metadata[i_c]['ri_factor']:.4f})")
-        out = _evaluate_point(
-            upf_path, rc_new, ri_new, extension, element, atomic_basis,
-            original_basis, working_dir,
+        logger.info(
+            "  Trial: rc=%.4f, ri_factor=%.4f (mix of rc=%.4f/%.4f, ri=%.4f/%.4f)",
+            rc_new,
+            ri_new,
+            metadata[i_a]["rc"],
+            metadata[i_c]["rc"],
+            metadata[i_a]["ri_factor"],
+            metadata[i_c]["ri_factor"],
         )
-        if out is not None:
-            spread, max_shift, dat_file = out
-            spreads.append(spread)
-            max_energy_shifts.append(max_shift)
-            dat_files.append(dat_file)
-            metadata.append({"rc": rc_new, "ri_factor": ri_new, "refined": True})
-            print(f"    -> spread={spread:.4f}, max_energy_shift={max_shift:.6f}")
+        out = _evaluate_point(
+            upf_path,
+            rc_new,
+            ri_new,
+            extension,
+            element,
+            atomic_basis,
+            original_basis,
+            working_dir,
+        )
+        _accumulate_result(
+            out,
+            rc_new,
+            ri_new,
+            spreads,
+            max_energy_shifts,
+            dat_files,
+            metadata,
+            refined=True,
+        )
 
     # Determine which points have outermost wavefunctions modified by confinement.
-    # The reference is the most "unconfined" point: max rc, max ri_factor (narrowest
-    # confining potential).
-    ref_idx = max(range(len(metadata)),
-                  key=lambda i: (metadata[i]["rc"], metadata[i]["ri_factor"]))
-    ref_r, ref_R = get_outermost_wavefunction(dat_files[ref_idx], atomic_basis)
-    for i in range(len(metadata)):
-        r_i, R_i = get_outermost_wavefunction(dat_files[i], atomic_basis)
-        # Interpolate onto the shorter grid (the point's grid) and compare
-        ref_R_interp = np.interp(r_i, ref_r, ref_R)
-        # Use the overlap-based similarity: 1 - |<ψ|ψ_ref>|² / (<ψ|ψ><ψ_ref|ψ_ref>)
-        overlap = float(np.trapz(R_i * ref_R_interp * r_i**2, r_i))
-        norm_i = float(np.trapz(R_i**2 * r_i**2, r_i))
-        norm_ref = float(np.trapz(ref_R_interp**2 * r_i**2, r_i))
-        if norm_i > 0 and norm_ref > 0:
-            fidelity = overlap**2 / (norm_i * norm_ref)
-            metadata[i]["modified_by_confinement"] = fidelity < 0.9999
-        else:
-            metadata[i]["modified_by_confinement"] = True
+    _annotate_confinement(metadata, dat_files, atomic_basis)
 
     return spreads, max_energy_shifts, metadata
 
@@ -213,7 +297,12 @@ def dump_pareto_json(
     output["points"] = points
     n_pareto = sum(1 for p in points if p["pareto"])
     path.write_text(json.dumps(output, indent=2))
-    print(f"Grid ({len(points)} points, {n_pareto} on Pareto front) saved to {path}")
+    logger.info(
+        "Grid (%d points, %d on Pareto front) saved to %s",
+        len(points),
+        n_pareto,
+        path,
+    )
 
 
 def find_kink_triplets(
@@ -344,13 +433,18 @@ def plot_pareto(
     r_half_arr = (ri_factor_arr + 1) / 2 * rc_arr
     pareto_mask = np.array([p["pareto"] for p in points])
 
-    fig, ax = plt.subplots(figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75),
-                           layout="tight")
+    fig, ax = plt.subplots(
+        figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75), layout="tight"
+    )
 
     point_size = 5
     sc = ax.scatter(
-        spreads_arr, shifts_arr, c=r_half_arr, cmap=COLORMAP,
-        s=point_size, zorder=2,
+        spreads_arr,
+        shifts_arr,
+        c=r_half_arr,
+        cmap=COLORMAP,
+        s=point_size,
+        zorder=2,
     )
     fig.colorbar(sc, ax=ax, label=r"$r_{1/2}$ (Bohr)")
 
@@ -371,44 +465,45 @@ def plot_pareto(
 
     # Line through trusted portion of the front
     ax.plot(
-        spreads_arr[trusted_pareto], shifts_arr[trusted_pareto],
-        "-", color="crimson", linewidth=0.5, zorder=3,
+        spreads_arr[trusted_pareto],
+        shifts_arr[trusted_pareto],
+        "-",
+        color="crimson",
+        linewidth=0.5,
+        zorder=3,
     )
     # Coloured dots with crimson edge on Pareto points
     cmap = plt.get_cmap(COLORMAP)
     norm = mcolors.Normalize(vmin=r_half_arr.min(), vmax=r_half_arr.max())
     ax.scatter(
-        spreads_arr[sorted_pareto], shifts_arr[sorted_pareto],
-        s=point_size, c=cmap(norm(r_half_arr[sorted_pareto])),
-        edgecolors="crimson", linewidths=0.4, zorder=4,
+        spreads_arr[sorted_pareto],
+        shifts_arr[sorted_pareto],
+        s=point_size,
+        c=cmap(norm(r_half_arr[sorted_pareto])),
+        edgecolors="crimson",
+        linewidths=0.4,
+        zorder=4,
     )
 
     # Reference line at 0.02 Ry (default energy shift tolerance in SIESTA)
     ax.axhline(_SIESTA_TOLERANCE_HA, color="grey", linewidth=0.5, linestyle="--", zorder=1)
-    # ax.annotate("default energy shift tolerance in SIESTA", xy=(1.0, _SIESTA_TOLERANCE_HA),
-    #             xycoords=("axes fraction", "data"),
-    #             textcoords="offset points", xytext=(-4, 2),
-    #             fontsize=5, color="grey", ha="right", va="bottom")
 
     if loglog or logy:
         import matplotlib.ticker as mticker
+
         ax.set_yscale("log")
         ax.set_ylim(bottom=_SIESTA_TOLERANCE_HA / 10, top=1.0)
 
     if loglog or logy:
         # Set xmin to 0.9 * spread at the Pareto front where energy shift = 1 Ha
-        pareto_at_top = [
-            spreads_arr[idx] for idx in sorted_pareto
-            if shifts_arr[idx] <= 1.0
-        ]
+        pareto_at_top = [spreads_arr[idx] for idx in sorted_pareto if shifts_arr[idx] <= 1.0]
         if pareto_at_top:
             ax.set_xlim(left=0.9 * min(pareto_at_top))
 
         # Set xmax to 1.1 * spread of the Pareto front point at tolerance / 10
         y_cutoff = _SIESTA_TOLERANCE_HA / 10
         pareto_at_cutoff = [
-            spreads_arr[idx] for idx in sorted_pareto
-            if shifts_arr[idx] >= y_cutoff
+            spreads_arr[idx] for idx in sorted_pareto if shifts_arr[idx] >= y_cutoff
         ]
         if pareto_at_cutoff:
             ax.set_xlim(right=1.1 * max(pareto_at_cutoff))

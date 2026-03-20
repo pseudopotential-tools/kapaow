@@ -69,7 +69,8 @@ def read_openmx_pao(path: Path) -> OpenMXPAO:
         # Columns 2 onwards are the orbital multiplicities
         orbitals[l_val] = data[:, 2:]
 
-    assert x is not None and r is not None
+    if x is None or r is None:
+        raise ValueError("No orbital data found in file.")
     return OpenMXPAO(lmax=lmax, num_mul=num_mul, x=x, r=r, orbitals=orbitals)
 
 
@@ -88,7 +89,8 @@ def parse_select(select: str) -> list[int]:
     counts: dict[int, int] = {}
     for ch in select.lower():
         if ch not in L_LETTERS:
-            raise ValueError(f"Unknown angular momentum letter '{ch}' in --select. Use: {L_LETTERS}")
+            msg = f"Unknown angular momentum letter '{ch}' in --select. Use: {L_LETTERS}"
+            raise ValueError(msg)
         l_val = L_LETTERS.index(ch)
         counts[l_val] = counts.get(l_val, 0) + 1
 
@@ -125,7 +127,7 @@ def convert_to_wannier90(
     # Validate
     for l_val, count in enumerate(selected):
         if l_val >= pao.lmax:
-            available_channels = L_LETTERS[:pao.lmax]
+            available_channels = L_LETTERS[: pao.lmax]
             raise ValueError(
                 f"Requested l={l_val} ({L_LETTERS[l_val]}) but file only has "
                 f"channels up to l={pao.lmax - 1} ({available_channels})."
@@ -133,8 +135,7 @@ def convert_to_wannier90(
         available = pao.orbitals[l_val].shape[1]
         if count > available:
             raise ValueError(
-                f"Requested {count} {L_LETTERS[l_val]}-orbitals but only "
-                f"{available} available."
+                f"Requested {count} {L_LETTERS[l_val]}-orbitals but only {available} available."
             )
 
     # Build output arrays
@@ -155,10 +156,10 @@ def _extract_param(text: str, key: str) -> int:
     for line in text.splitlines():
         if key in line:
             # e.g. "PAO.Lmax   3" or "grid.num.output  500  # default=2000"
-            after_key = line[line.index(key) + len(key):]
+            after_key = line[line.index(key) + len(key) :]
             # Strip comments
             if "#" in after_key:
-                after_key = after_key[:after_key.index("#")]
+                after_key = after_key[: after_key.index("#")]
             return int(after_key.strip())
     raise ValueError(f"'{key}' not found in file.")
 

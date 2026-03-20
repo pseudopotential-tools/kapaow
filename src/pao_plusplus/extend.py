@@ -8,7 +8,6 @@ from pao_plusplus.basis import (
     AngularMomentum,
     AtomicBasis,
     PseudoatomicBasis,
-    Subshell,
     ordered_subshells,
 )
 from pao_plusplus.pydantic import BaseModel
@@ -59,8 +58,8 @@ class BasisExtensionViaAddition(BasisExtension):
             gaps.append(subshell)
 
         # Use gaps first, then continue past outermost
-        candidates = gaps + ordered_subshells[i_outermost + 1:]
-        to_add = candidates[:self.increment]
+        candidates = gaps + ordered_subshells[i_outermost + 1 :]
+        to_add = candidates[: self.increment]
         if len(to_add) < self.increment:
             raise ValueError(f"Cannot add {self.increment} subshell(s) beyond the current basis.")
         return basis.extend(to_add)

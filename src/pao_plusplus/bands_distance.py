@@ -70,10 +70,10 @@ def bands_distance(
     diff = dft_trimmed - wan_trimmed  # (num_kpoints, num_bands)
 
     # Per-band RMS
-    per_band_eta = np.sqrt(np.mean(diff ** 2, axis=0))
+    per_band_eta = np.sqrt(np.mean(diff**2, axis=0))
 
     # Global RMS
-    eta = float(np.sqrt(np.mean(diff ** 2)))
+    eta = float(np.sqrt(np.mean(diff**2)))
 
     # Maximum absolute difference
     abs_diff = np.abs(diff)

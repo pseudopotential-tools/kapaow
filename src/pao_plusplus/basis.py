@@ -199,9 +199,7 @@ class AtomicBasis(Basis):
         from upf_tools import UPFDict
 
         upf_dict = UPFDict.from_upf(upf_path)
-        return cls(
-            subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-        )
+        return cls(subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]])
 
     def extend(self, subshells: list[Subshell]) -> AtomicBasis:
         """Return a new AtomicBasis with an added subshell."""

@@ -20,9 +20,9 @@ from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 
-from bayes_opt import BayesianOptimization
 import click
 import ipdb
+from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
 from pao_plusplus.extend import (
@@ -32,8 +32,8 @@ from pao_plusplus.extend import (
 )
 from pao_plusplus.optimize import optimize as internal_optimize
 from pao_plusplus.optimize import plot_optimizer
-from pao_plusplus.plotting import plot_wannier90_dat_files
 from pao_plusplus.periodic_table import plot_periodic_table
+from pao_plusplus.plotting import plot_wannier90_dat_files
 from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
 
 __all__ = [
@@ -47,7 +47,9 @@ def add_option(func: Callable) -> click.Command:
         "--add",
         type=click.Choice(["subshell", "polarization"]),
         multiple=True,
-        help="Add basis functions to the PAO basis (repeatable, e.g. --add subshell --add subshell).",
+        help=(
+            "Add basis functions to the PAO basis (repeatable, e.g. --add subshell --add subshell)."
+        ),
     )(func)
 
 
@@ -130,13 +132,23 @@ def main(ctx: click.Context, debug: bool) -> None:
 
 @main.command()
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-@click.option("--select", "select_str", type=str, default=None,
-              help="Orbitals to extract from an OpenMX .pao file (e.g. 'sspd' for 2s, 1p, 1d). "
-              "Only valid for .pao files.")
-@click.option("-o", "--output", type=click.Path(path_type=Path), default=None,
-              help="Output .dat file path (default: <stem>.dat).")
+@click.option(
+    "--select",
+    "select_str",
+    type=str,
+    default=None,
+    help="Orbitals to extract from an OpenMX .pao file (e.g. 'sspd' for 2s, 1p, 1d). "
+    "Only valid for .pao files.",
+)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output .dat file path (default: <stem>.dat).",
+)
 def convert(input_file: Path, select_str: str | None, output: Path | None) -> None:
-    """Convert a pseudopotential file to Wannier90 .dat format.
+    r"""Convert a pseudopotential file to Wannier90 .dat format.
 
     INPUT_FILE is a UPF pseudopotential or an OpenMX .pao file. The format
     is detected from the file extension.
@@ -182,11 +194,17 @@ def convert(input_file: Path, select_str: str | None, output: Path | None) -> No
     "--ri-factor", type=float, default=None, help="Inner radius factor for the confining potential."
 )
 @add_option
-@click.option("-o", "--output", type=click.Path(path_type=Path), default=None,
-              help="Output .dat file path (default: auto-generated from UPF name and parameters).")
-def confine(upf: Path, rc: float | None, ri_factor: float | None,
-            add: tuple[str, ...], output: Path | None) -> None:
-    """Solve for PAOs under a confining potential, optionally adding orbitals.
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output .dat file path (default: auto-generated from UPF name and parameters).",
+)
+def confine(
+    upf: Path, rc: float | None, ri_factor: float | None, add: tuple[str, ...], output: Path | None
+) -> None:
+    r"""Solve for PAOs under a confining potential, optionally adding orbitals.
 
     If -o/--output is not provided, the .dat content is printed to stdout.
 
@@ -207,16 +225,18 @@ def confine(upf: Path, rc: float | None, ri_factor: float | None,
         ri_factor = DEFAULT_RI_FACTOR_MAX
 
     if output is not None:
-        solve_and_export(
-            upf, rc=rc, ri_factor=ri_factor, extension=extension, dat_filename=output
-        )
+        solve_and_export(upf, rc=rc, ri_factor=ri_factor, extension=extension, dat_filename=output)
         click.echo(f"Written to {output}")
     else:
         with tempfile.TemporaryDirectory() as tmpdir:
             dat_file = Path("output.dat")
             solve_and_export(
-                upf, rc=rc, ri_factor=ri_factor, extension=extension,
-                dat_filename=dat_file, working_dir=Path(tmpdir),
+                upf,
+                rc=rc,
+                ri_factor=ri_factor,
+                extension=extension,
+                dat_filename=dat_file,
+                working_dir=Path(tmpdir),
             )
             click.echo((Path(tmpdir) / dat_file).read_text(), nl=False)
 
@@ -243,19 +263,47 @@ def projectability(upf: Path, add: tuple[str, ...]) -> None:
 
 @optimize.command()
 @click.argument("upf", type=click.Path(exists=True, path_type=Path))
-@click.option("--rc", type=float, multiple=True, default=None,
-              help="Confinement radii to scan (can be specified multiple times).")
-@click.option("--ri-factor", type=float, multiple=True, default=None,
-              help="Inner radius factors to scan (can be specified multiple times).")
-@click.option("-o", "--output", type=click.Path(path_type=Path), default="spread.svg",
-              help="Save the Pareto plot to this file.")
+@click.option(
+    "--rc",
+    type=float,
+    multiple=True,
+    default=None,
+    help="Confinement radii to scan (can be specified multiple times).",
+)
+@click.option(
+    "--ri-factor",
+    type=float,
+    multiple=True,
+    default=None,
+    help="Inner radius factors to scan (can be specified multiple times).",
+)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    default="spread.svg",
+    help="Save the Pareto plot to this file.",
+)
 @click.option("--loglog", is_flag=True, default=False, help="Use log-log axes.")
 @click.option("--logy", is_flag=True, default=False, help="Use log scale for the y-axis only.")
-@click.option("--json", "json_path", type=click.Path(path_type=Path), default=None,
-              help="Save the grid data to a JSON file.")
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Save the grid data to a JSON file.",
+)
 @add_option
-def spread(upf: Path, rc: tuple[float, ...], ri_factor: tuple[float, ...],
-           output: Path, loglog: bool, logy: bool, json_path: Path | None, add: tuple[str, ...]) -> None:
+def spread(
+    upf: Path,
+    rc: tuple[float, ...],
+    ri_factor: tuple[float, ...],
+    output: Path,
+    loglog: bool,
+    logy: bool,
+    json_path: Path | None,
+    add: tuple[str, ...],
+) -> None:
     """Optimize PAO spread by scanning rc and ri_factor, producing a Pareto front."""
     from pao_plusplus.pareto import compute_pareto_front, dump_pareto_json, plot_pareto
 
@@ -264,8 +312,10 @@ def spread(upf: Path, rc: tuple[float, ...], ri_factor: tuple[float, ...],
     ri_factor_values = list(ri_factor) if ri_factor else None
 
     spreads, max_energy_shifts, metadata = compute_pareto_front(
-        upf, extension=extension,
-        rc_values=rc_values, ri_factor_values=ri_factor_values,
+        upf,
+        extension=extension,
+        rc_values=rc_values,
+        ri_factor_values=ri_factor_values,
         loglog=loglog,
     )
 
@@ -286,23 +336,34 @@ def spread(upf: Path, rc: tuple[float, ...], ri_factor: tuple[float, ...],
 @click.argument("element", type=str)
 @click.argument("rival_dats", nargs=-1, type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--fixed", multiple=True, type=click.Path(exists=True, path_type=Path),
+    "--fixed",
+    multiple=True,
+    type=click.Path(exists=True, path_type=Path),
     help="Fixed projector .dat file for another species (repeatable). "
     "Element inferred from filename prefix before '_rc_'.",
 )
 @click.option(
-    "-o", "--output", type=click.Path(path_type=Path), default=None,
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
     help="Working directory for benchmark outputs (default: tmp/benchmark/<structure_stem>).",
 )
 @click.option(
-    "--dis-proj-max", type=float, default=0.8,
+    "--dis-proj-max",
+    type=float,
+    default=0.8,
     help="Disentanglement projection maximum (default: 0.8).",
 )
 def benchmark(
-    structure: Path, element: str, rival_dats: tuple[Path, ...],
-    fixed: tuple[Path, ...], output: Path | None, dis_proj_max: float,
+    structure: Path,
+    element: str,
+    rival_dats: tuple[Path, ...],
+    fixed: tuple[Path, ...],
+    output: Path | None,
+    dis_proj_max: float,
 ) -> None:
-    """Benchmark rival projectors by wannierizing a structure.
+    r"""Benchmark rival projectors by wannierizing a structure.
 
     Runs wannierization (as a metal) for each rival projector .dat file and
     compares disentanglement difficulty, convergence, and Wannier function
@@ -370,7 +431,11 @@ def benchmark(
 
     # Plot Wannier-interpolated bands comparison against DFT bands
     bands_plot = working_dir / f"bands_comparison{dpm_tag}.svg"
-    plot_bands_comparison(results, dft_band_plot_data=bands_result.band_plot_data, filename=bands_plot)
+    plot_bands_comparison(
+        results,
+        dft_band_plot_data=bands_result.band_plot_data,
+        filename=bands_plot,
+    )
     click.echo(f"Bands comparison plot saved to {bands_plot}")
 
 
@@ -381,22 +446,60 @@ def benchmark(
 
 @main.command()
 @click.argument("element_or_upf", type=str)
-@click.option("--frames-per-segment", type=int, default=10, help="Number of frames per path segment.")
-@click.option("--max-r-mid", type=float, default=15.0, help="Maximum midpoint of confining potential.")
-@click.option("--min-r-mid", type=float, default=5.0, help="Minimum midpoint of confining potential.")
-@click.option("--min-width", type=float, default=0.1, help="Minimum half-width of confining potential.")
-@click.option("--max-width", type=float, default=5.0, help="Maximum half-width of confining potential.")
-@click.option("--energy-shift-threshold", type=float, default=0.02,
-              help="Energy shift threshold in Ry; orbitals above this are plotted in red.")
+@click.option(
+    "--frames-per-segment",
+    type=int,
+    default=10,
+    help="Number of frames per path segment.",
+)
+@click.option(
+    "--max-r-mid",
+    type=float,
+    default=15.0,
+    help="Maximum midpoint of confining potential.",
+)
+@click.option(
+    "--min-r-mid",
+    type=float,
+    default=5.0,
+    help="Minimum midpoint of confining potential.",
+)
+@click.option(
+    "--min-width",
+    type=float,
+    default=0.1,
+    help="Minimum half-width of confining potential.",
+)
+@click.option(
+    "--max-width",
+    type=float,
+    default=5.0,
+    help="Maximum half-width of confining potential.",
+)
+@click.option(
+    "--energy-shift-threshold",
+    type=float,
+    default=0.02,
+    help="Energy shift threshold in Ry; orbitals above this are plotted in red.",
+)
 @add_option
-@click.option("--output", "-o", type=click.Path(path_type=Path), default="output.gif",
-              help="Save the output to this file.")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default="output.gif",
+    help="Save the output to this file.",
+)
 def animate(
-    element_or_upf: str, frames_per_segment: int,
-    max_r_mid: float, min_r_mid: float,
-    min_width: float, max_width: float,
+    element_or_upf: str,
+    frames_per_segment: int,
+    max_r_mid: float,
+    min_r_mid: float,
+    min_width: float,
+    max_width: float,
     energy_shift_threshold: float,
-    output: Path, add: tuple[str, ...],
+    output: Path,
+    add: tuple[str, ...],
 ) -> None:
     """Generate a GIF showing PAOs under varying confinement.
 
@@ -410,12 +513,13 @@ def animate(
         upf_path = upf_candidate
     else:
         from pao_plusplus.data.pseudodojo import fetch_pseudopotential
+
         upf_path = fetch_pseudopotential(element_or_upf)
 
     extension = get_extension(add)
 
     def _on_frame(i: int, total: int, rc: float, ri_factor: float) -> None:
-        click.echo(f"  Frame {i+1}/{total}: rc={rc:.2f}, ri_factor={ri_factor:.2f}")
+        click.echo(f"  Frame {i + 1}/{total}: rc={rc:.2f}, ri_factor={ri_factor:.2f}")
 
     generate_animation(
         upf_path=upf_path,
@@ -432,19 +536,14 @@ def animate(
     click.echo(f"GIF saved to {output}")
 
 
-# ---------------------------------------------------------------------------
-# plot (group)
-# ---------------------------------------------------------------------------
-
-
 @main.group()
 def plot() -> None:
-    """Plotting commands."""
-    pass
+    """Plot PAO-related data."""
 
 
 def with_output_option(default_format: str) -> Callable:
     """Reusable Click option for output file paths."""
+
     def decorator(func: Callable) -> click.Command:
         return click.option(
             "--output",
@@ -453,6 +552,7 @@ def with_output_option(default_format: str) -> Callable:
             default=f"output{default_format}",
             help="Save the output to this file.",
         )(func)
+
     return decorator
 
 
@@ -480,16 +580,25 @@ def projectability_optimization(log_file: Path, output: Path | None) -> None:
 def spread_optimization(json_file: Path, output: Path, loglog: bool, logy: bool) -> None:
     """Plot a spread optimization Pareto front from an existing JSON file."""
     from pao_plusplus.pareto import plot_pareto
+
     plot_pareto(json_file, filename=output, loglog=loglog, logy=logy)
     click.echo(f"Pareto plot saved to {output}")
 
 
 @plot.command(name="periodic-table")
 @click.argument("directory", type=click.Path(exists=True, path_type=Path))
-@click.option("--color-by", type=click.Choice(["projectability", "spread"]), required=True,
-              help="Metric to color the periodic table by.")
-@click.option("--threshold", type=float, default=0.02,
-              help="Energy shift threshold in Ry (only used with --color-by spread, default: 0.02).")
+@click.option(
+    "--color-by",
+    type=click.Choice(["projectability", "spread"]),
+    required=True,
+    help="Metric to color the periodic table by.",
+)
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.02,
+    help="Energy shift threshold in Ry (only used with --color-by spread, default: 0.02).",
+)
 @with_output_option(default_format=".html")
 def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output: Path) -> None:
     """Plot a periodic table colored by a PAO quality metric.
@@ -498,20 +607,32 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     --color-by projectability, or Pareto front JSONs for --color-by spread.
     """
     if color_by == "projectability":
+
         def extract_data(optimizer: BayesianOptimization) -> float:
             return optimizer.max["target"]
 
         plot_periodic_table(extract_data, directory, output=output)
     elif color_by == "spread":
         from pao_plusplus.periodic_table import plot_pareto_periodic_table
+
         plot_pareto_periodic_table(directory, output=output, threshold_ry=threshold)
 
 
 @plot.command(name="fat-bands")
 @click.argument("working_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("bessel_files", nargs=-1, type=click.Path(exists=True, path_type=Path))
-@click.option("--emin", type=float, default=None, help="Minimum energy relative to Fermi level (eV).")
-@click.option("--emax", type=float, default=None, help="Maximum energy relative to Fermi level (eV).")
+@click.option(
+    "--emin",
+    type=float,
+    default=None,
+    help="Minimum energy relative to Fermi level (eV).",
+)
+@click.option(
+    "--emax",
+    type=float,
+    default=None,
+    help="Maximum energy relative to Fermi level (eV).",
+)
 @with_output_option(default_format=".svg")
 def fat_bands(
     working_dir: Path,
@@ -552,15 +673,18 @@ def fat_bands(
         bands_calc_dir=bands_result.bands_calc_dir,
         band_plot_data=bands_result.band_plot_data,
         bessel_files=bessel_map,
-        emin=emin, emax=emax, filename=output,
+        emin=emin,
+        emax=emax,
+        filename=output,
     )
     click.echo(f"Fat bands plot saved to {output}")
 
 
 @plot.command(name="unshifted-vs-rc")
 @click.argument("grid_directory", type=click.Path(exists=True, path_type=Path))
-@click.option("--threshold", type=float, default=0.02,
-              help="Energy shift threshold in Ry (default: 0.02).")
+@click.option(
+    "--threshold", type=float, default=0.02, help="Energy shift threshold in Ry (default: 0.02)."
+)
 @with_output_option(default_format=".svg")
 def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> None:
     """Plot cumulative fraction of elements below energy shift threshold vs rc.
@@ -568,8 +692,11 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
     GRID_DIRECTORY is a directory containing per-element grid JSON files.
     """
     from pao_plusplus.analysis import plot_cumulative_below_threshold
+
     plot_cumulative_below_threshold(
-        grid_directory, threshold_ry=threshold, filename=output,
+        grid_directory,
+        threshold_ry=threshold,
+        filename=output,
     )
     click.echo(f"Unshifted-vs-rc plot saved to {output}")
 

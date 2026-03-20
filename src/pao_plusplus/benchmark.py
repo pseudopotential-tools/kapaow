@@ -57,7 +57,7 @@ class WannierBenchmarkResult:
     band_x: npt.NDArray[np.float64] | None = field(default=None, repr=False)
     """K-path distances for Wannier-interpolated bands."""
     band_energies: npt.NDArray[np.float64] | None = field(default=None, repr=False)
-    """Wannier-interpolated band energies relative to Fermi level (num_kpoints x num_bands), in eV."""
+    """Wannier-interpolated band energies relative to Fermi level, in eV."""
     band_labels: list[tuple[float, str]] | None = field(default=None, repr=False)
     """High-symmetry point labels as (x_position, label_string) with unicode."""
 
@@ -112,7 +112,9 @@ def extract_benchmark_result(
         fermi_energy = scf_params["fermi_energy"]
         # Use AiiDA's bandplot helper for proper x-distances and labels
         plot_info = bands_node._get_bandplot_data(
-            cartesian=True, prettify_format="latex_seekpath", join_symbol="|",
+            cartesian=True,
+            prettify_format="latex_seekpath",
+            join_symbol="|",
             y_origin=fermi_energy,
         )
         band_x = np.array(plot_info["x"])
@@ -239,20 +241,25 @@ def format_benchmark_table(results: list[WannierBenchmarkResult]) -> str:
     lines: list[str] = []
 
     # Header
-    lines.append(f"{'Projector':<40s} {'Conv':>4s} {'Ω_I':>8s} {'Ω_D':>8s} "
-                 f"{'Ω_OD':>8s} {'Ω_tot':>8s} {'max(σ)':>8s} {'mean(σ)':>8s}")
+    lines.append(
+        f"{'Projector':<40s} {'Conv':>4s} {'Omega_I':>8s} "
+        f"{'Omega_D':>8s} {'Omega_OD':>8s} {'Omega_tot':>8s} "
+        f"{'max(s)':>8s} {'mean(s)':>8s}"
+    )
     lines.append("-" * len(lines[0]))
 
     for r in results:
         name = r.dat_file.name
         if len(name) > 39:
-            name = "…" + name[-38:]
+            name = "..." + name[-38:]
         conv = "yes" if r.converged else "NO"
         max_spread = max(r.wf_spreads) if r.wf_spreads else float("nan")
         mean_spread = (sum(r.wf_spreads) / len(r.wf_spreads)) if r.wf_spreads else float("nan")
         lines.append(
-            f"{name:<40s} {conv:>4s} {r.omega_i:8.4f} {r.omega_d:8.4f} "
-            f"{r.omega_od:8.4f} {r.omega_total:8.4f} {max_spread:8.4f} {mean_spread:8.4f}"
+            f"{name:<40s} {conv:>4s} {r.omega_i:8.4f} "
+            f"{r.omega_d:8.4f} {r.omega_od:8.4f} "
+            f"{r.omega_total:8.4f} {max_spread:8.4f} "
+            f"{mean_spread:8.4f}"
         )
 
     # Per-WF detail
@@ -261,11 +268,104 @@ def format_benchmark_table(results: list[WannierBenchmarkResult]) -> str:
     for r in results:
         name = r.dat_file.name
         if len(name) > 39:
-            name = "…" + name[-38:]
+            name = "..." + name[-38:]
         spreads_str = ", ".join(f"{s:.4f}" for s in r.wf_spreads)
         lines.append(f"  {name}: [{spreads_str}]")
 
     return "\n".join(lines)
+
+
+def _annotate_convergence(
+    ax: Any,
+    n_iter: int,
+    y_final: float,
+    color: str,
+) -> None:
+    """Add a vertical arrow annotation at x=n_iter on the given axis."""
+    ax.annotate(
+        f"{n_iter} iterations",
+        xy=(n_iter, y_final),
+        xycoords="data",
+        xytext=(0, 10),
+        textcoords="offset points",
+        fontsize=5,
+        color=color,
+        ha="center",
+        va="bottom",
+        rotation=90,
+        bbox={
+            "boxstyle": "round,pad=0.15",
+            "fc": "white",
+            "ec": "none",
+            "alpha": 0.8,
+        },
+        arrowprops={
+            "arrowstyle": "->",
+            "color": color,
+            "lw": 0.8,
+        },
+    )
+
+
+def _sqrt_shifted_scale(offset: float) -> tuple:
+    """Return (forward, inverse) functions for a sqrt(y - offset) scale."""
+
+    def forward(y: npt.ArrayLike) -> npt.ArrayLike:
+        with np.errstate(invalid="ignore"):
+            return np.sqrt(y - offset)
+
+    def inverse(y_t: npt.ArrayLike) -> npt.ArrayLike:
+        return y_t**2 + offset
+
+    return forward, inverse
+
+
+def _plot_disentanglement_panel(
+    ax: Any,
+    results: list[WannierBenchmarkResult],
+) -> None:
+    """Plot the disentanglement convergence panel (Omega_I vs iteration)."""
+    best_dis = min(r.dis_omega_i[-1] for r in results if r.dis_iterations is not None)
+    margin_dis = 0.02
+    for r in results:
+        if r.dis_iterations is not None:
+            (line,) = ax.plot(
+                r.dis_iterations,
+                r.dis_omega_i,
+                label=r.dat_file.stem,
+            )
+            n_iter = int(r.dis_iterations[-1])
+            _annotate_convergence(ax, n_iter, r.dis_omega_i[-1], line.get_color())
+    ax.set_yscale("function", functions=_sqrt_shifted_scale(best_dis - margin_dis))
+    ax.set_ylim(bottom=best_dis - margin_dis)
+    ax.set_xscale("log")
+    ax.set_xlim(left=1)
+    ax.set_xlabel("Disentanglement iteration")
+    ax.set_ylabel(r"$\Omega_\mathrm{I}$ ($\AA^2$)")
+    ax.legend(fontsize=6, loc="lower right", bbox_to_anchor=(1, 1))
+
+
+def _plot_spread_panel(
+    ax: Any,
+    results: list[WannierBenchmarkResult],
+) -> None:
+    """Plot the spread minimisation convergence panel (Omega_Total vs cycle)."""
+    best_spread = min(r.spread_omega_total[-1] for r in results if r.spread_cycles is not None)
+    margin_spread = 0.02
+    for r in results:
+        if r.spread_cycles is not None:
+            (line,) = ax.plot(
+                r.spread_cycles,
+                r.spread_omega_total,
+            )
+            n_iter = int(r.spread_cycles[-1])
+            _annotate_convergence(ax, n_iter, r.spread_omega_total[-1], line.get_color())
+    ax.set_yscale("function", functions=_sqrt_shifted_scale(best_spread - margin_spread))
+    ax.set_ylim(bottom=best_spread - margin_spread)
+    ax.set_xscale("log")
+    ax.set_xlim(left=1)
+    ax.set_xlabel("Spread minimisation iteration")
+    ax.set_ylabel(r"$\Omega_\mathrm{total}$ ($\AA^2$)")
 
 
 def plot_convergence(
@@ -294,79 +394,97 @@ def plot_convergence(
         return
 
     fig, axes = plt.subplots(
-        n_panels, 1,
+        n_panels,
+        1,
         figsize=(REVTEX_COLUMN_WIDTH, 2.5 * n_panels),
         squeeze=False,
     )
     axes = axes[:, 0]
     ax_idx = 0
 
-    def _annotate_convergence(ax: Any, n_iter: int, y_final: float, color: str) -> None:
-        """Add a vertical arrow at x=n_iter pointing to y_final with iteration count above."""
-        ax.annotate(
-            f"{n_iter} iterations",
-            xy=(n_iter, y_final), xycoords="data",
-            xytext=(0, 10), textcoords="offset points",
-            fontsize=5, color=color, ha="center", va="bottom",
-            rotation=90,
-            bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none", "alpha": 0.8},
-            arrowprops={"arrowstyle": "->", "color": color, "lw": 0.8},
-        )
-
-    def _sqrt_shifted_scale(offset: float) -> tuple:
-        """Return (forward, inverse) functions for a sqrt(y - offset) scale."""
-        def forward(y):
-            with np.errstate(invalid="ignore"):
-                return np.sqrt(y - offset)
-        def inverse(y_t):
-            return y_t ** 2 + offset
-        return forward, inverse
-
     if has_dis:
-        ax = axes[ax_idx]
-        best_dis = min(r.dis_omega_i[-1] for r in results if r.dis_iterations is not None)
-        worst_dis = max(r.dis_omega_i[0] for r in results if r.dis_iterations is not None)
-        margin_dis = 0.02
-        for r in results:
-            if r.dis_iterations is not None:
-                line, = ax.plot(
-                    r.dis_iterations, r.dis_omega_i,
-                    label=r.dat_file.stem,
-                )
-                n_iter = int(r.dis_iterations[-1])
-                _annotate_convergence(ax, n_iter, r.dis_omega_i[-1], line.get_color())
-        ax.set_yscale("function", functions=_sqrt_shifted_scale(best_dis - margin_dis))
-        ax.set_ylim(bottom=best_dis - margin_dis)
-        ax.set_xscale("log")
-        ax.set_xlim(left=1)
-        ax.set_xlabel("Disentanglement iteration")
-        ax.set_ylabel(r"$\Omega_\mathrm{I}$ ($\AA^2$)")
-        ax.legend(fontsize=6, loc="lower right", bbox_to_anchor=(1, 1))
+        _plot_disentanglement_panel(axes[ax_idx], results)
         ax_idx += 1
 
     if has_spread:
-        ax = axes[ax_idx]
-        best_spread = min(r.spread_omega_total[-1] for r in results if r.spread_cycles is not None)
-        worst_spread = max(r.spread_omega_total[0] for r in results if r.spread_cycles is not None)
-        margin_spread = 0.02
-        for r in results:
-            if r.spread_cycles is not None:
-                line, = ax.plot(
-                    r.spread_cycles, r.spread_omega_total,
-                )
-                n_iter = int(r.spread_cycles[-1])
-                _annotate_convergence(ax, n_iter, r.spread_omega_total[-1], line.get_color())
-        ax.set_yscale("function", functions=_sqrt_shifted_scale(best_spread - margin_spread))
-        ax.set_ylim(bottom=best_spread - margin_spread)
-        ax.set_xscale("log")
-        ax.set_xlim(left=1)
-        ax.set_xlabel("Spread minimisation iteration")
-        ax.set_ylabel(r"$\Omega_\mathrm{total}$ ($\AA^2$)")
+        _plot_spread_panel(axes[ax_idx], results)
 
     fig.tight_layout()
     fig.savefig(filename, dpi=300)
     plt.close(fig)
     logger.info("Convergence plot saved to %s", filename)
+
+
+_BAND_LINESTYLES = ["--", "-.", ":", (0, (3, 1, 1, 1, 1, 1))]
+
+
+def _plot_dft_bands(ax: Any, dft_band_plot_data: Any) -> None:
+    """Plot DFT bands as grey background lines on *ax*."""
+    dft_x = dft_band_plot_data.x
+    dft_energies = dft_band_plot_data.energies  # already Fermi-shifted
+    for band_idx in range(dft_energies.shape[1]):
+        ax.plot(dft_x, dft_energies[:, band_idx], color="0.75", lw=0.5, zorder=1)
+
+
+def _plot_wannier_bands(
+    ax: Any,
+    band_results: list[WannierBenchmarkResult],
+    colors: list[str],
+) -> None:
+    """Plot each rival's Wannier-interpolated bands on *ax*."""
+    for i, (r, color) in enumerate(zip(band_results, colors, strict=False)):
+        ls = _BAND_LINESTYLES[i % len(_BAND_LINESTYLES)]
+        for band_idx in range(r.band_energies.shape[1]):
+            ax.plot(
+                r.band_x,
+                r.band_energies[:, band_idx],
+                color=color,
+                ls=ls,
+                lw=0.5,
+                zorder=2,
+            )
+
+
+def _configure_band_axis(
+    ax: Any,
+    ref: WannierBenchmarkResult,
+    emin: float,
+    emax: float,
+) -> None:
+    """Set axis limits, Fermi line, and high-symmetry labels on *ax*."""
+    ax.set_xlim(ref.band_x[0], ref.band_x[-1])
+    ax.set_ylim(emin, emax)
+    ax.axhline(0, color="k", ls="--", lw=0.3)
+
+    if ref.band_labels is not None:
+        label_positions = [pos for pos, _ in ref.band_labels]
+        label_strings = [lbl for _, lbl in ref.band_labels]
+        for pos in label_positions:
+            ax.axvline(pos, color="k", ls="-", lw=0.3, alpha=0.5)
+        ax.set_xticks(label_positions)
+        ax.set_xticklabels(label_strings)
+
+    ax.set_ylabel("Energy (eV)")
+
+
+def _build_band_legend(
+    ax: Any,
+    band_results: list[WannierBenchmarkResult],
+    colors: list[str],
+    dft_band_plot_data: Any | None,
+) -> None:
+    """Build and attach a legend to *ax* for band comparison plots."""
+    from matplotlib.lines import Line2D
+
+    handles: list[Line2D] = []
+    if dft_band_plot_data is not None:
+        handles.append(Line2D([], [], color="0.75", lw=1, label="DFT"))
+    for i, (r, color) in enumerate(zip(band_results, colors, strict=False)):
+        ls = _BAND_LINESTYLES[i % len(_BAND_LINESTYLES)]
+        handles.append(
+            Line2D([], [], color=color, ls=ls, lw=1, label=r.dat_file.stem),
+        )
+    ax.legend(handles=handles, fontsize=6, loc="lower right", bbox_to_anchor=(1, 1))
 
 
 def plot_bands_comparison(
@@ -394,7 +512,6 @@ def plot_bands_comparison(
         filename: Path to save the figure.
     """
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
 
     from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
 
@@ -404,7 +521,9 @@ def plot_bands_comparison(
         return
 
     # Determine energy range from all Wannier bands with padding
-    all_energies = np.concatenate([r.band_energies.ravel() for r in band_results])
+    all_energies = np.concatenate(
+        [r.band_energies.ravel() for r in band_results],
+    )
     padding = 0.025 * (all_energies.max() - all_energies.min())
     if emin is None:
         emin = float(all_energies.min()) - padding
@@ -415,45 +534,13 @@ def plot_bands_comparison(
         figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75),
     )
 
-    # Plot DFT bands as grey background
     if dft_band_plot_data is not None:
-        dft_x = dft_band_plot_data.x
-        dft_energies = dft_band_plot_data.energies  # already Fermi-shifted
-        for band_idx in range(dft_energies.shape[1]):
-            ax.plot(dft_x, dft_energies[:, band_idx], color="0.75", lw=0.5, zorder=1)
+        _plot_dft_bands(ax, dft_band_plot_data)
 
-    # Plot each rival's Wannier bands in a different colour and linestyle
     colors = [f"C{i}" for i in range(len(band_results))]
-    linestyles = ["--", "-.", ":", (0, (3, 1, 1, 1, 1, 1))]
-    for i, (r, color) in enumerate(zip(band_results, colors)):
-        ls = linestyles[i % len(linestyles)]
-        for band_idx in range(r.band_energies.shape[1]):
-            ax.plot(r.band_x, r.band_energies[:, band_idx], color=color, ls=ls, lw=0.5, zorder=2)
-
-    # Use labels from the first rival (all share the same seekpath)
-    ref = band_results[0]
-    ax.set_xlim(ref.band_x[0], ref.band_x[-1])
-    ax.set_ylim(emin, emax)
-    ax.axhline(0, color="k", ls="--", lw=0.3)
-
-    if ref.band_labels is not None:
-        label_positions = [pos for pos, _ in ref.band_labels]
-        label_strings = [lbl for _, lbl in ref.band_labels]
-        for pos in label_positions:
-            ax.axvline(pos, color="k", ls="-", lw=0.3, alpha=0.5)
-        ax.set_xticks(label_positions)
-        ax.set_xticklabels(label_strings)
-
-    ax.set_ylabel("Energy (eV)")
-
-    # Legend
-    handles = []
-    if dft_band_plot_data is not None:
-        handles.append(Line2D([], [], color="0.75", lw=1, label="DFT"))
-    for i, (r, color) in enumerate(zip(band_results, colors)):
-        ls = linestyles[i % len(linestyles)]
-        handles.append(Line2D([], [], color=color, ls=ls, lw=1, label=r.dat_file.stem))
-    ax.legend(handles=handles, fontsize=6, loc="lower right", bbox_to_anchor=(1, 1))
+    _plot_wannier_bands(ax, band_results, colors)
+    _configure_band_axis(ax, band_results[0], emin, emax)
+    _build_band_legend(ax, band_results, colors, dft_band_plot_data)
 
     fig.tight_layout()
     fig.savefig(filename, dpi=300)
