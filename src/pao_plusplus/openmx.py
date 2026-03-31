@@ -74,28 +74,29 @@ def read_openmx_pao(path: Path) -> OpenMXPAO:
     return OpenMXPAO(lmax=lmax, num_mul=num_mul, x=x, r=r, orbitals=orbitals)
 
 
-def parse_select(select: str) -> list[int]:
-    """Parse a selection string like ``"sspd"`` into counts per l channel.
+def parse_select(select: list[str]) -> list[int]:
+    """Parse a selection list like ``["s", "s", "p", "d"]`` into counts per l channel.
 
-    Each character is an angular momentum letter (s, p, d, f, g, h).
+    Each entry is an angular momentum letter (s, p, d, f, g, h).
     The count per channel is the number of occurrences.
 
     Returns
     -------
     list[int]
-        Counts per l channel, indexed by l.  For example ``"sspd"`` returns
-        ``[2, 1, 1]``.
+        Counts per l channel, indexed by l.  For example ``["s", "s", "p", "d"]``
+        returns ``[2, 1, 1]``.
     """
     counts: dict[int, int] = {}
-    for ch in select.lower():
+    for ch in select:
+        ch = ch.lower()
         if ch not in L_LETTERS:
-            msg = f"Unknown angular momentum letter '{ch}' in --select. Use: {L_LETTERS}"
+            msg = f"Unknown angular momentum letter '{ch}' in select. Use: {L_LETTERS}"
             raise ValueError(msg)
         l_val = L_LETTERS.index(ch)
         counts[l_val] = counts.get(l_val, 0) + 1
 
     if not counts:
-        raise ValueError("--select string is empty.")
+        raise ValueError("select list is empty.")
 
     max_l = max(counts)
     return [counts.get(l, 0) for l in range(max_l + 1)]
@@ -149,6 +150,99 @@ def convert_to_wannier90(
     orbitals = np.array(orbital_columns)  # shape (num_orbitals, num_grid)
 
     return pao.x.tolist(), pao.r.tolist(), l_values, orbitals
+
+
+def pao_to_bessel(
+    pao: OpenMXPAO,
+    output_path: Path,
+    selected: list[int] | None = None,
+    qmax: float = 50.0,
+    nq: int = 201,
+    bessel_npoints: int = 41,
+) -> Path:
+    """Convert OpenMX PAO radial orbitals to a Bessel HDF5 file.
+
+    Performs a spherical Bessel transform of each selected orbital using
+    the ``atomic_femdvr`` library, producing the ``.h5`` format expected
+    by ``qe_wavefunctions``.
+
+    Parameters
+    ----------
+    pao
+        Parsed OpenMX PAO data.
+    output_path
+        Where to write the Bessel HDF5 file.
+    selected
+        Orbitals per l channel (from :func:`parse_select`).  If ``None``,
+        one orbital per channel.
+    qmax
+        Maximum q value for the Bessel grid (Bohr^-1).
+    nq
+        Number of q-grid points.
+    bessel_npoints
+        Quadrature points per finite element for the Bessel integral.
+
+    Returns
+    -------
+    Path
+        The path to the written ``.h5`` file.
+    """
+    from scipy.interpolate import interp1d
+
+    from atomic_femdvr.bessel_transform import bessel_integral
+    from atomic_femdvr.femdvr import FEDVR_Basis
+    from atomic_femdvr.projector_output import write_bessel_hdf5
+
+    _, r_list, l_values, orbitals = convert_to_wannier90(pao, selected)
+    r = np.array(r_list)
+
+    # Count orbitals per l channel to determine lmax and nmax
+    l_counts: dict[int, int] = {}
+    for l_val in l_values:
+        l_counts[l_val] = l_counts.get(l_val, 0) + 1
+    lmax = max(l_counts)
+    nmax = max(l_counts.values()) - 1
+
+    # Set up FEDVR basis covering the radial domain
+    r_min = max(r[0], 1e-6)
+    r_max = r[-1]
+    ne = 20
+    ng = 11
+    xp = np.linspace(r_min, r_max, ne + 1)
+    basis = FEDVR_Basis(ne=ne, ng=ng, xp=xp)
+
+    # Set up q-grid
+    qgrid = np.linspace(0.0, qmax, nq)
+
+    # Bessel-transform each orbital
+    phi_bessel = np.zeros((lmax + 1, nmax + 1, nq))
+    l_index: dict[int, int] = {}  # tracks next n index per l
+    for i, l_val in enumerate(l_values):
+        n = l_index.get(l_val, 0)
+        l_index[l_val] = n + 1
+
+        # Interpolate the radial orbital onto the FEDVR grid
+        f_interp = interp1d(r, orbitals[i], kind="cubic", bounds_error=False, fill_value=0.0)
+        r_fedvr = basis.get_gridpoints()
+        phi_on_grid = f_interp(r_fedvr)
+
+        phi_bessel[l_val, n, :] = bessel_integral(
+            basis, l_val, 1, qgrid, phi_on_grid, npoints=bessel_npoints, method="simpson"
+        )
+
+    write_bessel_hdf5(str(output_path.parent), output_path.stem, "", phi_bessel, qgrid)
+
+    # write_bessel_hdf5 uses f"{elem}_{tag}_bessel.h5" naming; rename to output_path
+    generated = output_path.parent / f"{output_path.stem}__bessel.h5"
+    if generated.exists() and generated != output_path:
+        generated.rename(output_path)
+    elif not output_path.exists():
+        # Try without the underscore separator if tag is empty
+        for candidate in output_path.parent.glob(f"{output_path.stem}*bessel.h5"):
+            candidate.rename(output_path)
+            break
+
+    return output_path
 
 
 def _extract_param(text: str, key: str) -> int:

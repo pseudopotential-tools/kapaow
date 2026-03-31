@@ -19,6 +19,7 @@ import traceback
 from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 import click
 import ipdb
@@ -27,7 +28,9 @@ from upf_tools import UPFDict
 
 from pao_plusplus.extend import (
     BasisExtension,
+    BasisExtensionType,
     BasisExtensionViaAddition,
+    BasisExtensionViaChannel,
     BasisExtensionViaPolarization,
 )
 from pao_plusplus.optimize import optimize as internal_optimize
@@ -45,7 +48,7 @@ def add_option(func: Callable) -> click.Command:
     """Reusable Click option for adding basis functions."""
     return click.option(
         "--add",
-        type=click.Choice(["subshell", "polarization"]),
+        type=click.Choice([t.value for t in BasisExtensionType]),
         multiple=True,
         help=(
             "Add basis functions to the PAO basis (repeatable, e.g. --add subshell --add subshell)."
@@ -63,13 +66,16 @@ def get_extension(add: tuple[str, ...]) -> BasisExtension | None:
         return None
     kinds = set(add)
     if len(kinds) > 1:
-        raise click.UsageError("Cannot mix --add subshell and --add polarization in the same call.")
-    kind = kinds.pop()
+        raise click.UsageError("Cannot mix different --add types in the same call.")
+    kind = BasisExtensionType(kinds.pop())
     count = len(add)
-    if kind == "subshell":
+    if kind == BasisExtensionType.SUBSHELL:
         return BasisExtensionViaAddition(increment=count)
-    elif kind == "polarization":
+    if kind == BasisExtensionType.POLARIZATION:
         return BasisExtensionViaPolarization(increment=count)
+    channel = kind.angular_momentum
+    if channel is not None:
+        return BasisExtensionViaChannel(channel=channel, increment=count)
     return None
 
 
@@ -116,11 +122,23 @@ def enable_postmortem_debugger() -> None:
 @click.group()
 @click.version_option()
 @click.option("--debug", is_flag=True, help="Enable debug mode.")
+@click.option("-l", "--log", is_flag=True, help="Enable logging to pao_plusplus.log.")
 @click.pass_context
-def main(ctx: click.Context, debug: bool) -> None:
+def main(ctx: click.Context, debug: bool, log: bool) -> None:
     """CLI for pao_plusplus."""
     if debug:
         enable_postmortem_debugger()
+    if log:
+        import logging
+
+        file_handler = logging.FileHandler("pao_plusplus.log", mode="w")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+        )
+        pkg_logger = logging.getLogger("pao_plusplus")
+        pkg_logger.setLevel(logging.INFO)
+        pkg_logger.addHandler(file_handler)
     ctx.ensure_object(dict)
     ctx.obj["debug"] = debug
 
@@ -166,7 +184,7 @@ def convert(input_file: Path, select_str: str | None, output: Path | None) -> No
         from pao_plusplus.openmx import convert_to_wannier90, parse_select, read_openmx_pao
 
         pao = read_openmx_pao(input_file)
-        selected = parse_select(select_str) if select_str else None
+        selected = parse_select(list(select_str)) if select_str else None
         x, r, l_values, orbitals = convert_to_wannier90(pao, selected)
         dat_content = format_wannier90_dat(x, r, l_values, orbitals)
     else:
@@ -320,7 +338,7 @@ def spread(
     )
 
     # Always dump JSON (to a default path if not specified), then plot from it
-    effective_json = json_path if json_path is not None else output.with_suffix(".json")
+    effective_json = json_path if json_path is not None else Path("tmp/optimize/spread") / output.with_suffix(".json").name
     dump_pareto_json(spreads, max_energy_shifts, metadata, effective_json, upf_path=upf)
     plot_pareto(effective_json, filename=output, loglog=loglog, logy=logy)
     click.echo(f"Pareto plot saved to {output}")
@@ -332,36 +350,17 @@ def spread(
 
 
 @main.command()
-@click.argument("structure", type=click.Path(exists=True, path_type=Path))
-@click.argument("element", type=str)
-@click.argument("rival_dats", nargs=-1, type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--fixed",
-    multiple=True,
-    type=click.Path(exists=True, path_type=Path),
-    help="Fixed projector .dat file for another species (repeatable). "
-    "Element inferred from filename prefix before '_rc_'.",
-)
+@click.argument("config_path", metavar="CONFIG", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "-o",
     "--output",
     type=click.Path(path_type=Path),
     default=None,
-    help="Working directory for benchmark outputs (default: tmp/benchmark/<structure_stem>).",
-)
-@click.option(
-    "--dis-proj-max",
-    type=float,
-    default=0.8,
-    help="Disentanglement projection maximum (default: 0.8).",
+    help="Working directory for benchmark outputs (default: tmp/benchmark/<config_stem>).",
 )
 def benchmark(
-    structure: Path,
-    element: str,
-    rival_dats: tuple[Path, ...],
-    fixed: tuple[Path, ...],
+    config_path: Path,
     output: Path | None,
-    dis_proj_max: float,
 ) -> None:
     r"""Benchmark rival projectors by wannierizing a structure.
 
@@ -369,74 +368,173 @@ def benchmark(
     compares disentanglement difficulty, convergence, and Wannier function
     spreads.
 
-    STRUCTURE is a CIF/XSF file. ELEMENT is the species being benchmarked
-    (e.g. Li). RIVAL_DATS are .dat projector files for that element.
+    CONFIG is a TOML file specifying the structure and projectors per element:
+
+    \b
+        structure = "LiF.cif"
+
+        [Li]
+        "Optimal PAO" = "projectors/Li_optimal.dat"
+        "PseudoDojo"  = "projectors/Li_pseudodojo.dat"
+
+        [O]
+        "Standard" = "projectors/O.dat"
 
     \b
     Example:
-        pao_plusplus benchmark LiF.cif Li Li_rc_8.dat Li_rc_10.dat --fixed F_rc_5.dat
+        pao_plusplus benchmark benchmark.toml
     """
     from pao_plusplus.benchmark import (
         format_benchmark_table,
+        generate_dat_files,
         plot_bands_comparison,
         plot_convergence,
         run_benchmark,
     )
+    from pao_plusplus.config import BenchmarkConfig, OptimizeDisThresholds
     from pao_plusplus.workflows import run_bands_workflow
 
-    if not rival_dats:
-        raise click.UsageError("At least one rival .dat file is required.")
+    cfg = BenchmarkConfig.from_toml(config_path)
+    structure = cfg.structure
 
-    # Parse fixed projectors: infer element from filename prefix before '_rc_'
-    fixed_dats: dict[str, Path] = {}
-    for fpath in fixed:
-        fp = Path(fpath)
-        stem = fp.stem
-        if "_rc_" in stem:
-            species = stem.split("_rc_")[0]
-        else:
-            species = stem.split("_")[0]
-        if species in fixed_dats:
-            raise click.UsageError(
-                f"Multiple fixed projectors for {species}: {fixed_dats[species]} and {fp}"
-            )
-        fixed_dats[species] = fp
+    dis_proj_max_value = cfg.wannier90.get("dis_proj_max")
+    dis_proj_min_value = cfg.wannier90.get("dis_proj_min")
+    optimize_mode = cfg.optimize_dis_thresholds
 
-    working_dir = output or Path("tmp") / "benchmark" / structure.stem
-    rival_paths = [Path(d) for d in rival_dats]
+    working_dir = output or Path("tmp") / "benchmark" / config_path.stem
+
+    # Generate .dat and bessel files from element configs
+    combinations, bessel_combinations = generate_dat_files(cfg, working_dir)
 
     # Run DFT bands first (cached if already done). This gives us the exact
     # k-points used by QE so Wannier90 can interpolate on the same grid.
-    bands_result = run_bands_workflow(structure, working_dir)
+    bands_result = run_bands_workflow(structure, working_dir, min_nbnd=cfg.num_bands, kpath=cfg.kpath)
     click.echo("DFT bands computed.")
 
+    # Resolve dis_froz_max from CBM-relative value
+    dis_froz_max_value: float | None = None
+    if cfg.dis_froz_max_wrt_cbm is not None:
+        import numpy as _np
+
+        # band_plot_data.energies are Fermi-shifted; CBM = min energy > 0
+        energies = bands_result.band_plot_data.energies
+        positive_energies = energies[energies > 0]
+        if len(positive_energies) == 0:
+            raise click.UsageError(
+                "No conduction bands found above Fermi level; cannot determine CBM."
+            )
+        cbm = float(positive_energies.min())
+        dis_froz_max_value = cbm + cfg.dis_froz_max_wrt_cbm
+        click.echo(
+            f"CBM = {cbm:.4f} eV (relative to Fermi level), "
+            f"dis_froz_max = CBM + {cfg.dis_froz_max_wrt_cbm} = {dis_froz_max_value:.4f} eV "
+            f"(relative to Fermi level, will be shifted to absolute by workflow)"
+        )
+
+    optimize_strategy = optimize_mode.value if optimize_mode != OptimizeDisThresholds.NONE else None
+
+    click.echo(f"Running {len(combinations)} benchmark combination(s)...")
     results = run_benchmark(
         structure_file=structure,
-        element=element,
-        rival_dats=rival_paths,
-        fixed_dats=fixed_dats,
+        combinations=combinations,
+        bessel_combinations=bessel_combinations,
         working_dir=working_dir,
         bands_kpoints_pk=bands_result.bands_kpoints_pk,
-        dis_proj_max=dis_proj_max,
+        dis_proj_max=dis_proj_max_value,
+        dis_proj_min=dis_proj_min_value,
+        dis_froz_max=dis_froz_max_value,
+        extra_w90_params=cfg.wannier90 or None,
+        optimize_strategy=optimize_strategy,
+        otsu_bins=cfg.otsu_bins,
+        reference_bands_pk=bands_result.reference_bands_pk,
+        min_nbnd=cfg.num_bands,
+        fermi_energy=bands_result.fermi_energy,
     )
 
     click.echo(format_benchmark_table(results))
 
-    # Include dis_proj_max in figure names to avoid overwriting
-    dpm_tag = f"_dpm{dis_proj_max:.2f}".replace(".", "_")
+    # Compute fat bands if there is a single set of projectors
+    channel_projectabilities = None
+    if len(combinations) == 1:
+        from pao_plusplus.fat_bands import (
+            build_atoms_dict,
+            compute_amn_from_wfc,
+            compute_projectability_per_channel,
+        )
+        from pao_plusplus.projectability import _make_qe_input_wfc
 
-    convergence_plot = working_dir / f"convergence{dpm_tag}.svg"
+        bessel_files = bessel_combinations[0]
+        bands_calc_dir = bands_result.bands_calc_dir
+        pwi_file = bands_calc_dir / "inputs" / "aiida.in"
+        wfc_dir = bands_calc_dir / "outputs"
+        atoms_dict, lattice_vectors = build_atoms_dict(pwi_file)
+        qe_wfc = _make_qe_input_wfc(wfc_dir, lattice_vectors)
+        num_kpoints = bands_result.band_plot_data.energies.shape[0]
+        _smn, amn, cmn, channel_indices = compute_amn_from_wfc(
+            qe_wfc=qe_wfc,
+            bessel_files=bessel_files,
+            atoms_dict=atoms_dict,
+            lattice_vectors=lattice_vectors,
+            num_kpoints=num_kpoints,
+        )
+        channel_projectabilities = compute_projectability_per_channel(amn, cmn, channel_indices)
+        click.echo("Fat bands computed for single projector set.")
+
+    seed = config_path.stem
+
+    # Include optimization mode in figure names to avoid overwriting
+    if optimize_strategy is not None:
+        dpm_tag = f"_{optimize_strategy}"
+    elif dis_proj_max_value is not None:
+        dpm_tag = f"_dpm{dis_proj_max_value:.2f}".replace(".", "_")
+    else:
+        dpm_tag = ""
+
+    convergence_plot = working_dir / f"{seed}_wannierization_trajectory{dpm_tag}.svg"
     plot_convergence(results, filename=convergence_plot)
     click.echo(f"Convergence plot saved to {convergence_plot}")
 
     # Plot Wannier-interpolated bands comparison against DFT bands
-    bands_plot = working_dir / f"bands_comparison{dpm_tag}.svg"
+    bands_plot = working_dir / f"{seed}_interpolated_bands{dpm_tag}.svg"
     plot_bands_comparison(
         results,
         dft_band_plot_data=bands_result.band_plot_data,
+        channel_projectabilities=channel_projectabilities,
         filename=bands_plot,
     )
     click.echo(f"Bands comparison plot saved to {bands_plot}")
+
+    # If optimization was used, plot the trajectory
+    if isinstance(dis_proj_max_value, str) and dis_proj_max_value == "optimize":
+        from pao_plusplus.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+
+        # Re-load the process node from the most recent optimize run
+        # (stored as the last workgraph in working_dir/run_000/wannierize_optimize)
+        try:
+            from koopmans.aiida.setup import load_koopmans_profile
+
+            load_koopmans_profile()
+            from aiida.orm import QueryBuilder, WorkChainNode
+
+            # Find the most recent Wannier90OptimizeWorkChain
+            qb = QueryBuilder()
+            qb.append(
+                WorkChainNode,
+                filters={"attributes.process_label": "Wannier90OptimizeWorkChain"},
+                project=["*"],
+            )
+            qb.order_by({"*": {"ctime": "desc"}})
+            qb.limit(1)
+            optimize_nodes = qb.all()
+            if optimize_nodes:
+                opt_node = optimize_nodes[0][0]
+                trials = extract_optimize_trajectory(opt_node)
+                if trials:
+                    traj_plot = working_dir / f"{seed}_optimize_trajectory.svg"
+                    plot_optimize_trajectory(trials, filename=traj_plot)
+                    click.echo(f"Optimize trajectory plot saved to {traj_plot}")
+        except Exception as e:
+            click.echo(f"Could not extract optimize trajectory: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -541,17 +639,47 @@ def plot() -> None:
     """Plot PAO-related data."""
 
 
-def with_output_option(default_format: str) -> Callable:
-    """Reusable Click option for output file paths."""
+def with_output_option(default_format: str, from_config: str | None = None) -> Callable:
+    """Reusable Click option for output file paths.
+
+    Parameters
+    ----------
+    default_format
+        File extension including the dot (e.g. ``".svg"``).
+    from_config
+        If set, the name of the Click parameter that holds a config file
+        path.  When ``--output`` is not given, the default becomes
+        ``<config_stem><default_format>`` instead of ``output<default_format>``.
+    """
 
     def decorator(func: Callable) -> click.Command:
-        return click.option(
+        if from_config is None:
+            return click.option(
+                "--output",
+                "-o",
+                type=click.Path(path_type=Path),
+                default=f"output{default_format}",
+                help="Save the output to this file.",
+            )(func)
+
+        # Wrap the function to resolve the default from the config file
+        import functools
+
+        @click.option(
             "--output",
             "-o",
             type=click.Path(path_type=Path),
-            default=f"output{default_format}",
-            help="Save the output to this file.",
-        )(func)
+            default=None,
+            help=f"Save the output to this file (default: <config_stem>{default_format}).",
+        )
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if kwargs.get("output") is None:
+                config_path = kwargs[from_config]
+                kwargs["output"] = Path(config_path).with_suffix(default_format)
+            return func(*args, **kwargs)
+
+        return wrapper
 
     return decorator
 
@@ -619,8 +747,13 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
 
 
 @plot.command(name="fat-bands")
-@click.argument("working_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("bessel_files", nargs=-1, type=click.Path(exists=True, path_type=Path))
+@click.argument("config_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--working-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Working directory for intermediate files (default: tmp/fat_bands/<config_stem>).",
+)
 @click.option(
     "--emin",
     type=float,
@@ -633,51 +766,167 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     default=None,
     help="Maximum energy relative to Fermi level (eV).",
 )
-@with_output_option(default_format=".svg")
+@click.option(
+    "--num-bands",
+    type=int,
+    default=None,
+    help="Manual override for the number of bands in the DFT calculation.",
+)
+@with_output_option(default_format=".svg", from_config="config_file")
 def fat_bands(
-    working_dir: Path,
-    bessel_files: tuple[Path, ...],
+    config_file: Path,
+    working_dir: Path | None,
     emin: float | None,
     emax: float | None,
+    num_bands: int | None,
     output: Path,
 ) -> None:
     """Plot fat bands colored by projectability.
 
-    WORKING_DIR is a material working directory from a previous optimize run
-    (e.g. tmp/optimize/projectability/calculations/H) containing a
-    bands_cache.json file.
-    BESSEL_FILES are Bessel-format HDF5 atomic wavefunction files (one per species,
-    in the same order as the species appear in the QE input).
+    CONFIG_FILE is a TOML file specifying the structure and per-element
+    pseudopotentials. Example:
+
+    \b
+        structure = "LiF.cif"
+    \b
+        [Li]
+        upf = "Li.upf"
+        rc = 15.0
+        ri_factor = 0.3
+        extension = "subshell"
+    \b
+        [F]
+        upf = "F.upf"
     """
-    from pao_plusplus.fat_bands import build_atoms_dict, generate_fat_bands_plot
-    from pao_plusplus.workflows import _try_load_bands_cache
+    from pao_plusplus.fat_bands import generate_fat_bands_from_config
 
-    bands_result = _try_load_bands_cache(working_dir)
-    if bands_result is None:
-        raise click.UsageError(
-            f"No bands_cache.json found in {working_dir}. "
-            "Run 'pao_plusplus optimize projectability' first to generate band structure data."
-        )
-
-    pwi_file = bands_result.bands_calc_dir / "inputs" / "aiida.in"
-    atoms_dict, _ = build_atoms_dict(pwi_file)
-    species_list = list(atoms_dict.keys())
-    if len(bessel_files) != len(species_list):
-        raise click.BadParameter(
-            f"Expected {len(species_list)} Bessel files (one per species: {species_list}), "
-            f"got {len(bessel_files)}."
-        )
-    bessel_map = dict(zip(species_list, bessel_files, strict=True))
-
-    generate_fat_bands_plot(
-        bands_calc_dir=bands_result.bands_calc_dir,
-        band_plot_data=bands_result.band_plot_data,
-        bessel_files=bessel_map,
+    output_files = generate_fat_bands_from_config(
+        config_path=config_file,
+        working_dir=working_dir,
         emin=emin,
         emax=emax,
         filename=output,
+        num_bands=num_bands,
     )
-    click.echo(f"Fat bands plot saved to {output}")
+    for f in output_files:
+        click.echo(f"Fat bands plot saved to {f}")
+
+
+@plot.command(name="compare-projectability")
+@click.argument("config_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--working-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Working directory (default: tmp/proj_comparison/<config_stem>).",
+)
+@click.option(
+    "--emin",
+    type=float,
+    default=None,
+    help="Minimum energy relative to Fermi level (eV).",
+)
+@click.option(
+    "--emax",
+    type=float,
+    default=None,
+    help="Maximum energy relative to Fermi level (eV).",
+)
+@click.option(
+    "--num-bands",
+    type=int,
+    default=None,
+    help="Manual override for the number of bands in the DFT calculation.",
+)
+@with_output_option(default_format=".svg", from_config="config_file")
+def compare_projectability(
+    config_file: Path,
+    working_dir: Path | None,
+    emin: float | None,
+    emax: float | None,
+    num_bands: int | None,
+    output: Path,
+) -> None:
+    """Compare total projectability across different basis sets.
+
+    CONFIG_FILE is a TOML file where elements can have multiple entries
+    (using [[Element]] syntax) to define comparison sets. Example:
+
+    \b
+        structure = "LiF.cif"
+    \b
+        [[Li]]
+        openmx = true
+        rc = 8.0
+        label = "OpenMX rc=8"
+    \b
+        [[Li]]
+        upf = "Li.upf"
+        rc = 15.0
+        label = "UPF rc=15"
+    \b
+        [F]
+        upf = "F.upf"
+        rc = 15.0
+    """
+    from pao_plusplus.fat_bands import generate_projectability_comparison
+
+    generate_projectability_comparison(
+        config_path=config_file,
+        working_dir=working_dir,
+        emin=emin,
+        emax=emax,
+        filename=output,
+        num_bands=num_bands,
+    )
+    click.echo(f"Projectability comparison saved to {output}")
+
+
+@plot.command(name="compare-gauge-matrices")
+@click.argument("config_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--working-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Working directory (default: tmp/matrix_comparison/<config_stem>).",
+)
+@click.option(
+    "--num-bands",
+    type=int,
+    default=None,
+    help="Manual override for the number of bands in the DFT calculation.",
+)
+def compare_gauge_matrices(
+    config_file: Path,
+    working_dir: Path | None,
+    num_bands: int | None,
+) -> None:
+    r"""Compare A_mn^k and U_mn^k matrices across different PAO choices.
+
+    Computes the projection matrix A and its unitary polar factor U (from
+    SVD) for each PAO set defined in the TOML config, then prints a
+    Cartesian product table of pairwise distances.  The distance metric is
+    the square root of the BZ-averaged squared Frobenius norm of the
+    difference.
+
+    CONFIG_FILE uses the same ``[[Element]]`` syntax as compare-projectability.
+
+    \b
+    Example:
+        pao_plusplus plot compare-gauge-matrices LiF_projectability_comparison.toml
+    """
+    import numpy as np
+
+    from pao_plusplus.gauge import compare_matrices, format_distance_table
+
+    result = compare_matrices(config_file, working_dir=working_dir, num_bands=num_bands)
+    click.echo(format_distance_table(result.matrix_labels, result.distance_table))
+
+    for label_i, label_j, angles_a, angles_u in result.principal_angle_comparisons:
+        click.echo(f"\nPrincipal angles: {label_i} vs {label_j}")
+        fmt = lambda a: "  ".join(f"{v:5.2f}" for v in np.degrees(a))
+        click.echo(f"  from A†A: {fmt(angles_a)} deg")
+        click.echo(f"  from U†U: {fmt(angles_u)} deg")
 
 
 @plot.command(name="unshifted-vs-rc")
@@ -699,6 +948,43 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
         filename=output,
     )
     click.echo(f"Unshifted-vs-rc plot saved to {output}")
+
+
+@plot.command(name="optimize-trajectory")
+@click.argument("pk", type=int)
+@with_output_option(default_format=".svg")
+def optimize_trajectory(pk: int, output: Path) -> None:
+    """Plot bands distance vs dis_proj_max from a Bayesian optimization run.
+
+    PK is the AiiDA PK of the Wannier90OptimizeWorkChain or its parent
+    workgraph process node.
+    """
+    import logging
+
+    from pao_plusplus.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+
+    logging.basicConfig(level=logging.INFO)
+
+    from koopmans.aiida.setup import load_koopmans_profile
+
+    load_koopmans_profile()
+
+    from aiida import orm
+
+    process_node = orm.load_node(pk)
+    trials = extract_optimize_trajectory(process_node)
+
+    if not trials:
+        click.echo("No optimization trials found.")
+        return
+
+    click.echo(f"Found {len(trials)} trial(s):")
+    for i, t in enumerate(trials):
+        dist_str = f"{t.bands_distance:.4f} eV" if t.bands_distance is not None else "failed"
+        click.echo(f"  {i+1}. dis_proj_max={t.dis_proj_max:.4f}  bands_distance={dist_str}")
+
+    plot_optimize_trajectory(trials, filename=output)
+    click.echo(f"Plot saved to {output}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """How to extend a pseudoatomic basis set with additional orbitals."""
 
+import enum
 from abc import ABC, abstractmethod
 
 from pydantic import Field
@@ -11,6 +12,25 @@ from pao_plusplus.basis import (
     ordered_subshells,
 )
 from pao_plusplus.pydantic import BaseModel
+
+
+class BasisExtensionType(enum.Enum):
+    """Type of basis extension."""
+
+    SUBSHELL = "subshell"
+    POLARIZATION = "polarization"
+    S = "s"
+    P = "p"
+    D = "d"
+    F = "f"
+    G = "g"
+
+    @property
+    def angular_momentum(self) -> AngularMomentum | None:
+        """Return the angular momentum if this is a channel-specific extension."""
+        _map = {"s": AngularMomentum.S, "p": AngularMomentum.P, "d": AngularMomentum.D,
+                "f": AngularMomentum.F, "g": AngularMomentum.G}
+        return _map.get(self.value)
 
 
 class BasisExtension(BaseModel, ABC):
@@ -74,6 +94,19 @@ class BasisExtensionViaAddition(BasisExtension):
         return self.extend_atomic(basis).to_pseudoatomic_basis()
 
 
+class BasisExtensionViaChannel(BasisExtension):
+    """Add orbitals in a specific angular momentum channel."""
+
+    channel: AngularMomentum = Field(description="angular momentum channel to extend")
+    increment: int = Field(default=1, description="number of radial functions to add")
+
+    def extend(self, basis: AtomicBasis | PseudoatomicBasis) -> PseudoatomicBasis:
+        """Extend the provided basis by adding orbitals in the specified channel."""
+        if isinstance(basis, AtomicBasis):
+            basis = basis.to_pseudoatomic_basis()
+        return basis.extend(**{self.channel.name.lower(): self.increment})
+
+
 class BasisExtensionViaPolarization(BasisExtension):
     """Add polarization orbitals to a pseudoatomic basis set."""
 
@@ -96,3 +129,5 @@ class BasisExtensionViaPolarization(BasisExtension):
             increment -= 1
 
         return new_basis
+
+

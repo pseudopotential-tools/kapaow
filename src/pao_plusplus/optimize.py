@@ -10,6 +10,7 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
+from pao_plusplus.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
 from pao_plusplus.basis import AtomicBasis
 from pao_plusplus.data.sssp.structures import input_files
 from pao_plusplus.extend import BasisExtension
@@ -32,26 +33,6 @@ ATOMIC_FEMDVR_PATCHES = {
     "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
 }
 
-
-def compute_num_target_bands(
-    structure_file: Path,
-    target_element: str,
-    target_orbitals_per_atom: int,
-    upf_by_element: dict[str, Path],
-) -> int:
-    """Compute the number of target bands for a given material.
-
-    This is the total number of PAO orbitals across all atoms in the unit cell.
-    """
-    atoms = ase.io.read(str(structure_file))
-    ntb = 0
-    for sym in atoms.get_chemical_symbols():
-        if sym == target_element:
-            ntb += target_orbitals_per_atom
-        else:
-            other_basis = AtomicBasis.from_upf(upf_by_element[sym]).to_pseudoatomic_basis()
-            ntb += other_basis.total_number_of_orbitals
-    return ntb
 
 
 def _extract_element(upf_path: Path) -> str:
@@ -85,7 +66,7 @@ def _run_qe_for_materials(
         working_dir = calculation_dir / structure_file.stem
         working_dir.mkdir(parents=True, exist_ok=True)
         ntb = num_target_bands_per_material[structure_file.stem]
-        min_nbnd = max(int(1.5 * ntb), ntb + 4)
+        min_nbnd = compute_min_nbnd(ntb)
         result = run_qe_workflow(
             structure_file,
             working_dir=working_dir,
@@ -157,19 +138,21 @@ def optimize(
     calculation_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine orbitals per atom for the target element
-    atomic_basis = AtomicBasis.from_upf(upf_path)
-    if extension is not None:
-        pseudo_basis = extension.extend(atomic_basis)
-    else:
-        pseudo_basis = atomic_basis.to_pseudoatomic_basis()
-    target_orbitals_per_atom = pseudo_basis.total_number_of_orbitals
+    target_orbitals = orbitals_per_atom(upf_path, extension)
 
     upf_by_element = _index_upf_files(upf_path.parent)
     structure_file_list = list(input_files(element))
 
+    # Build orbitals-per-element map: target element uses the (possibly extended)
+    # count, all others use the default (unconfined) basis from their UPF.
+    orbitals_per_el = {
+        sym: orbitals_per_atom(upf) for sym, upf in upf_by_element.items()
+    }
+    orbitals_per_el[element] = target_orbitals
+
     # Compute per-material num_target_bands before running QE
     num_target_bands_per_material: dict[str, int] = {
-        sf.stem: compute_num_target_bands(sf, element, target_orbitals_per_atom, upf_by_element)
+        sf.stem: compute_num_target_bands(sf, orbitals_per_el)
         for sf in structure_file_list
     }
 
@@ -386,7 +369,8 @@ def _plot(
     ax.set_ylabel(p2)
 
     if filename is not None:
-        plt.savefig(filename, dpi=300)
+        from pao_plusplus.plotting import savefig
+        savefig(plt, filename)
         plt.close(fig)
     else:
         plt.show()

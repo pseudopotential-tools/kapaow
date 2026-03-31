@@ -16,6 +16,30 @@ from pao_plusplus.fat_bands import build_atoms_dict
 logger = logging.getLogger(__name__)
 
 
+def active_orbital_mask(
+    s_diag: npt.NDArray[np.float64],
+) -> npt.NDArray[np.bool_]:
+    """Identify populated (non-empty) orbital slots from the diagonal of S.
+
+    The ``qe_wavefunctions`` library allocates ``(lmax+1)^2 * (nmax+1)``
+    orbital slots per atom, but unpopulated slots appear as either ``NaN``
+    or ``0`` on the overlap diagonal.  This function returns a boolean mask
+    that is ``True`` for genuinely populated orbitals.
+
+    Parameters
+    ----------
+    s_diag
+        Real part of the diagonal of the overlap matrix S, shape
+        ``(num_orbitals,)``.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean mask of shape ``(num_orbitals,)``.
+    """
+    return ~np.isnan(s_diag) & (s_diag > 1e-10)
+
+
 def _make_qe_input_wfc(
     wfc_dir: Path,
     lattice_vectors: npt.NDArray[np.float64],
@@ -205,6 +229,48 @@ def projectability_score(
     return float(total / num_target_bands)
 
 
+def suggest_disentanglement_thresholds(
+    amn: npt.NDArray[np.complex128],
+    cmn: npt.NDArray[np.complex128],
+    otsu_bins: int = 5,
+) -> tuple[float, float]:
+    """Suggest dis_proj_min and dis_proj_max using multi-Otsu thresholding.
+
+    Computes the projectability eigenvalues from the A and C matrices,
+    pools them across the BZ, and applies multi-class Otsu thresholding.
+    The first and last thresholds are returned as dis_proj_min and
+    dis_proj_max, so that increasing ``otsu_bins`` widens the
+    disentanglement window.
+
+    Parameters
+    ----------
+    amn
+        Projection matrices, shape ``(num_kpoints, num_orbitals, num_bands)``.
+    cmn
+        ``S^{-1} A`` matrices, shape ``(num_kpoints, num_orbitals, num_bands)``.
+    otsu_bins
+        Number of Otsu classes (must be >= 3).  More classes resolve finer
+        structure, widening the disentanglement window.
+
+    Returns
+    -------
+    dis_proj_min, dis_proj_max
+        Suggested thresholds (both in [0, 1]).
+    """
+    from skimage.filters import threshold_multiotsu
+
+    proj_mats = proj_matrices_from_amn(amn, cmn)
+    eigvals = projectability_eigenvalues(proj_mats)
+    pooled = np.clip(eigvals.ravel(), 0.0, 1.0)
+
+    thresholds = threshold_multiotsu(pooled, classes=otsu_bins, nbins=64)
+    # Always use first and last thresholds to maximise the middle region
+    dis_proj_min = float(thresholds[0])
+    dis_proj_max = float(thresholds[-1])
+
+    return dis_proj_min, dis_proj_max
+
+
 def compute_projectability(
     pwi_file: Path,
     outdir: Path,
@@ -335,8 +401,7 @@ def check_onsite_overlap(
             end = base + norb_per_atom
             block = s_avg[base:end, base:end]
             diag = np.diag(block).real
-            # Mask out empty orbital slots (nan from zero-norm orbitals)
-            active = ~np.isnan(diag)
+            active = active_orbital_mask(diag)
             active_block = block[np.ix_(active, active)]
             identity = np.eye(active_block.shape[0])
             err = np.max(np.abs(active_block - identity))

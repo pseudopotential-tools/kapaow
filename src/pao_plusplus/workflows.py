@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,8 +15,6 @@ import numpy.typing as npt
 logger = logging.getLogger(__name__)
 
 PSEUDO_LIBRARY = "PseudoDojo/0.4/PBE/SR/standard/upf"
-_QE_CACHE_FILE = "workflow_cache.json"
-_BANDS_CACHE_FILE = "bands_cache.json"
 
 
 @dataclass
@@ -73,45 +70,6 @@ def _find_nscf_calc_dir(dump_dir: Path) -> Path:
     return matches[0]
 
 
-def _try_load_qe_cache(working_dir: Path, structure_file: Path) -> QEWorkflowResult | None:
-    """Try to load a cached QEWorkflowResult from disk."""
-    cache_file = working_dir / _QE_CACHE_FILE
-    if not cache_file.exists():
-        return None
-    try:
-        meta = json.loads(cache_file.read_text())
-        nscf_input_file = working_dir / meta["nscf_input_file"]
-        nscf_wfc_dir = working_dir / meta["nscf_wfc_dir"]
-        output_dir = working_dir / meta["output_dir"]
-        if not nscf_input_file.exists() or not nscf_wfc_dir.exists():
-            return None
-        atoms = ase.io.read(str(structure_file))
-        result = QEWorkflowResult(
-            atoms=atoms,
-            nscf_input_file=nscf_input_file,
-            nscf_wfc_dir=nscf_wfc_dir,
-            output_dir=output_dir,
-            kpoint_weights=np.array(meta["kpoint_weights"]),
-            fermi_energy=meta["fermi_energy"],
-        )
-        logger.info("Loaded cached QE result from %s", cache_file)
-        return result
-    except (json.JSONDecodeError, KeyError, FileNotFoundError):
-        return None
-
-
-def _save_qe_cache(working_dir: Path, result: QEWorkflowResult) -> None:
-    """Save QE workflow metadata to disk for fast re-loading."""
-    cache_file = working_dir / _QE_CACHE_FILE
-    meta = {
-        "nscf_input_file": str(result.nscf_input_file.relative_to(working_dir)),
-        "nscf_wfc_dir": str(result.nscf_wfc_dir.relative_to(working_dir)),
-        "output_dir": str(result.output_dir.relative_to(working_dir)),
-        "kpoint_weights": result.kpoint_weights.tolist(),
-        "fermi_energy": result.fermi_energy,
-    }
-    cache_file.write_text(json.dumps(meta))
-
 
 def run_qe_workflow(
     structure_file: Path,
@@ -120,8 +78,7 @@ def run_qe_workflow(
 ) -> QEWorkflowResult:
     """Run SCF + NSCF via AiiDA PwScfNscfTask.
 
-    On subsequent calls with the same working_dir, returns cached results
-    from disk without touching AiiDA.
+    AiiDA handles caching of identical calculations automatically.
 
     Args:
         structure_file: Path to a structure file (CIF, XSF, etc.).
@@ -131,9 +88,6 @@ def run_qe_workflow(
     Returns:
         QEWorkflowResult with paths to NSCF outputs.
     """
-    cached = _try_load_qe_cache(working_dir, structure_file)
-    if cached is not None:
-        return cached
 
     from aiida import orm
     from aiida_koopmans.workgraphs.pw import PwScfNscfTask
@@ -198,7 +152,6 @@ def run_qe_workflow(
         fermi_energy=fermi_energy,
     )
 
-    _save_qe_cache(working_dir, result)
     return result
 
 
@@ -224,6 +177,8 @@ class BandsWorkflowResult:
     band_plot_data: BandPlotData
     bands_kpoints_pk: int | None = None
     """AiiDA PK of a KpointsData node with the explicit k-path used for bands."""
+    reference_bands_pk: int | None = None
+    """AiiDA PK of the BandsData node with DFT reference bands."""
 
 
 def _find_bands_calc_dir(dump_dir: Path) -> Path:
@@ -246,59 +201,129 @@ def _find_bands_calc_dir(dump_dir: Path) -> Path:
     return matches[0]
 
 
-def _try_load_bands_cache(working_dir: Path) -> BandsWorkflowResult | None:
-    """Try to load a cached BandsWorkflowResult from disk."""
-    cache_file = working_dir / _BANDS_CACHE_FILE
-    if not cache_file.exists():
-        return None
-    try:
-        meta = json.loads(cache_file.read_text())
-        bands_calc_dir = working_dir / meta["bands_calc_dir"]
-        output_dir = working_dir / meta["output_dir"]
-        if not (bands_calc_dir / "inputs" / "aiida.in").exists():
-            return None
+def _build_kpoints_from_path(
+    structure: Any,
+    kpath: list[list[str]],
+    reference_distance: float = 0.025,
+) -> Any:
+    """Build an explicit KpointsData from a user-specified k-path.
 
-        band_x = np.load(working_dir / "band_x.npy")
-        band_energies = np.load(working_dir / "band_energies.npy")
-        band_labels = [(float(pos), str(lbl)) for pos, lbl in meta["band_labels"]]
+    Uses seekpath to look up the fractional coordinates of named high-symmetry
+    points, then generates an explicit list of k-points along the requested
+    path segments only (bypassing seekpath's automatic path selection).
 
-        logger.info("Loaded cached bands result from %s", cache_file)
-        return BandsWorkflowResult(
-            bands_calc_dir=bands_calc_dir,
-            output_dir=output_dir,
-            fermi_energy=meta["fermi_energy"],
-            band_plot_data=BandPlotData(
-                x=band_x,
-                energies=band_energies,
-                labels=band_labels,
-            ),
-            bands_kpoints_pk=meta.get("bands_kpoints_pk"),
+    Each inner list is a continuous path through the listed points.  Multiple
+    inner lists create discontinuities in the band plot.
+
+    Args:
+        structure: AiiDA StructureData node.
+        kpath: List of continuous segments, e.g.
+            ``[["GAMMA", "M", "K", "GAMMA"]]`` for a single continuous path,
+            or ``[["GAMMA", "M"], ["X", "GAMMA"]]`` for a path with a
+            discontinuity between M and X.
+        reference_distance: Target spacing between k-points in reciprocal
+            Angstrom (default matches seekpath's default of 0.025).
+
+    Returns:
+        A KpointsData node with explicit k-points and labels.
+    """
+    from aiida import orm
+
+    # Get the point coordinates from seekpath (but ignore its path)
+    cell = np.array(structure.cell)
+    reciprocal = 2 * np.pi * np.linalg.inv(cell).T
+
+    result = _seekpath_get_point_coords(structure)
+    point_coords = result["point_coords"]
+
+    # Validate all labels exist
+    all_labels = set()
+    for segment in kpath:
+        all_labels.update(segment)
+    missing = all_labels - set(point_coords.keys())
+    if missing:
+        raise ValueError(
+            f"Unknown k-point labels: {missing}. "
+            f"Available labels: {sorted(point_coords.keys())}"
         )
-    except (json.JSONDecodeError, KeyError, FileNotFoundError):
-        return None
+
+    # Build explicit k-points along each continuous segment
+    all_kpoints: list[list[float]] = []
+    labels: list[tuple[int, str]] = []
+
+    for segment in kpath:
+        if len(segment) < 2:
+            raise ValueError(f"Each path segment needs at least 2 labels, got {segment}")
+
+        for j in range(len(segment) - 1):
+            start_label = segment[j]
+            end_label = segment[j + 1]
+            start_frac = np.array(point_coords[start_label])
+            end_frac = np.array(point_coords[end_label])
+
+            # Compute distance in cartesian reciprocal space
+            delta_frac = end_frac - start_frac
+            delta_cart = delta_frac @ reciprocal
+            distance = float(np.linalg.norm(delta_cart))
+            npoints = max(2, int(np.ceil(distance / reference_distance)))
+
+            # Skip the first point for non-first sub-segments within a
+            # continuous segment (it's already the last point of the previous)
+            i_start = 1 if j > 0 else 0
+
+            if i_start == 0:
+                labels.append((len(all_kpoints), start_label))
+
+            for i in range(i_start, npoints):
+                t = i / (npoints - 1)
+                all_kpoints.append((start_frac + t * delta_frac).tolist())
+
+            labels.append((len(all_kpoints) - 1, end_label))
+
+    kpoints_data = orm.KpointsData()
+    kpoints_data.set_cell_from_structure(structure)
+    kpoints_data.set_kpoints(all_kpoints)
+    kpoints_data.labels = labels
+    return kpoints_data
+
+
+def _seekpath_get_point_coords(structure: Any) -> dict[str, Any]:
+    """Get high-symmetry point coordinates from seekpath without generating a path.
+
+    Args:
+        structure: AiiDA StructureData node.
+
+    Returns:
+        Dict with 'point_coords' mapping label -> [kx, ky, kz] in fractional coords.
+    """
+    from aiida.tools import get_explicit_kpoints_path
+
+    result = get_explicit_kpoints_path(structure)
+    params = result["parameters"].get_dict()
+    return {"point_coords": params["point_coords"]}
 
 
 def run_bands_workflow(
     structure_file: Path,
     working_dir: Path,
     min_nbnd: int | None = None,
+    kpath: list[list[str]] | None = None,
 ) -> BandsWorkflowResult:
     """Run SCF + bands along high-symmetry k-path via PwBandsWorkChain.
 
-    On subsequent calls with the same working_dir, returns cached results
-    from disk without touching AiiDA.
+    AiiDA handles caching of identical calculations automatically.
 
     Args:
         structure_file: Path to a structure file (CIF, XSF, etc.).
         working_dir: Working directory for this material.
         min_nbnd: Minimum number of bands for the bands calculation.
+        kpath: Explicit k-path as a list of segment pairs, e.g.
+            ``[["GAMMA", "M"], ["M", "K"], ["K", "GAMMA"]]``.
+            If provided, seekpath is bypassed entirely.
 
     Returns:
         BandsWorkflowResult with path to the bands calculation dump.
     """
-    cached = _try_load_bands_cache(working_dir)
-    if cached is not None:
-        return cached
 
     from aiida import orm
     from aiida_koopmans.workgraphs.pw import PwBandsTaskViaBuilder
@@ -311,6 +336,11 @@ def run_bands_workflow(
     _, structure = structure_to_aiida(structure_file)
     pw_code = orm.load_code("pw@localhost")
 
+    # Build explicit KpointsData if a manual k-path was provided
+    bands_kpoints = None
+    if kpath is not None:
+        bands_kpoints = _build_kpoints_from_path(structure, kpath)
+
     # Retrieve bands wavefunctions (needed for fat bands Amn computation)
     bands_pw_overrides: dict[str, Any] = {
         "metadata": {
@@ -319,7 +349,12 @@ def run_bands_workflow(
             }
         }
     }
-    overrides: dict[str, Any] = {"bands": {"pw": bands_pw_overrides}}
+    overrides: dict[str, Any] = {
+        "bands": {"pw": bands_pw_overrides},
+        # Use the same kpoints_distance as aiida-wannier90-workflows (0.2)
+        # so the SCF Fermi energies are consistent across workflows
+        "scf": {"kpoints_distance": 0.2},
+    }
     if min_nbnd is not None:
         bands_pw_overrides["parameters"] = {"SYSTEM": {"nbnd": min_nbnd}}
 
@@ -328,6 +363,7 @@ def run_bands_workflow(
         structure=structure,
         pseudo_family=PSEUDO_LIBRARY,
         overrides=overrides,
+        bands_kpoints=bands_kpoints,
     )
     run_with_progress(wg)
 
@@ -368,24 +404,7 @@ def run_bands_workflow(
     bands_kpoints.labels = kpoint_labels
     bands_kpoints.store()
     bands_kpoints_pk = bands_kpoints.pk
-
-    # Save band arrays to disk
-    np.save(working_dir / "band_x.npy", band_x)
-    np.save(working_dir / "band_energies.npy", band_energies)
-
-    # Write cache with paths and labels for fast reload
-    cache_file = working_dir / _BANDS_CACHE_FILE
-    cache_file.write_text(
-        json.dumps(
-            {
-                "bands_calc_dir": str(bands_calc_dir.relative_to(working_dir)),
-                "output_dir": str(output_dir.relative_to(working_dir)),
-                "fermi_energy": fermi_energy,
-                "band_labels": band_labels,
-                "bands_kpoints_pk": bands_kpoints_pk,
-            }
-        )
-    )
+    reference_bands_pk = bands_node.pk
 
     band_plot_data = BandPlotData(
         x=band_x,
@@ -399,6 +418,7 @@ def run_bands_workflow(
         fermi_energy=fermi_energy,
         band_plot_data=band_plot_data,
         bands_kpoints_pk=bands_kpoints_pk,
+        reference_bands_pk=reference_bands_pk,
     )
 
 
@@ -467,6 +487,10 @@ def run_wannierize_workflow(
     kpoint_path: dict[str, Any] | None = None,
     bands_kpoints_pk: int | None = None,
     dis_proj_max: float = 0.8,
+    dis_proj_min: float | None = None,
+    dis_froz_max: float | None = None,
+    extra_w90_params: dict[str, Any] | None = None,
+    min_nbnd: int | None = None,
 ) -> Any:
     """Run the full Wannierize workflow via AiiDA.
 
@@ -485,6 +509,12 @@ def run_wannierize_workflow(
             bands use the exact same k-grid as a prior DFT bands calculation.
             Mutually exclusive with kpoint_path.
         dis_proj_max: Disentanglement projection maximum.
+        dis_proj_min: Disentanglement projection minimum. If None, the
+            Wannier90 default is used.
+        dis_froz_max: If provided, upper bound of the frozen energy window
+            (eV, absolute).  Switches from projectability-only to
+            projectability + energy frozen window disentanglement.
+        min_nbnd: If provided, minimum number of bands for the NSCF step.
 
     Returns:
         The AiiDA process node for the completed workflow.
@@ -513,8 +543,16 @@ def run_wannierize_workflow(
         raise ValueError("Cannot specify both kpoint_path and bands_kpoints_pk.")
 
     w90_params: dict[str, Any] = {"dis_proj_max": dis_proj_max}
+    if dis_proj_min is not None:
+        w90_params["dis_proj_min"] = dis_proj_min
+    if dis_froz_max is not None:
+        w90_params["dis_froz_max"] = dis_froz_max
     if kpoint_path is not None or bands_kpoints_pk is not None:
         w90_params["bands_plot"] = True
+    if min_nbnd is not None:
+        w90_params["num_bands"] = min_nbnd
+    if extra_w90_params:
+        w90_params.update(extra_w90_params)
 
     # Load the KpointsData node if a PK was provided
     bands_kpoints_node = None
@@ -541,7 +579,11 @@ def run_wannierize_workflow(
         external_projectors_path=str(proj_dir.resolve()),
         external_projectors=external_projectors,
         electronic_type=ElectronicType.METAL,
-        frozen_type=WannierFrozenType.PROJECTABILITY,
+        frozen_type=(
+            WannierFrozenType.FIXED_PLUS_PROJECTABILITY
+            if dis_froz_max is not None
+            else WannierFrozenType.PROJECTABILITY
+        ),
         kpoint_path=kpoint_path,
         bands_kpoints=bands_kpoints_node,
     )
@@ -555,6 +597,132 @@ def run_wannierize_workflow(
         )
 
     output_dir = working_dir / "wannierize"
+    dump_workgraph(process_node, output_dir)
+
+    return process_node
+
+
+def run_wannierize_optimize_workflow(
+    structure_file: Path,
+    proj_dir: Path,
+    working_dir: Path,
+    bands_kpoints_pk: int,
+    reference_bands_pk: int,
+    dis_proj_max_range: list[float] | None = None,
+    dis_proj_min_range: list[float] | None = None,
+    dis_froz_max: float | None = None,
+    extra_w90_params: dict[str, Any] | None = None,
+    strategy: str = "bayesian",
+    max_iterations: int = 5,
+    mu_shift: float = 2.0,
+    sigma: float = 10.0,
+    mu_reference: str = "cbm",
+    min_nbnd: int | None = None,
+) -> Any:
+    """Run Wannier90 optimization workflow via AiiDA.
+
+    Uses the specified strategy (Bayesian or grid search) to find the
+    optimal dis_proj_max (and optionally dis_proj_min) that minimizes
+    the bands distance.
+
+    Args:
+        structure_file: Path to a structure file (CIF, XSF, etc.).
+        proj_dir: Path to directory containing external projector .dat files.
+        working_dir: Working directory for outputs.
+        bands_kpoints_pk: PK of KpointsData with explicit k-points from DFT bands.
+        reference_bands_pk: PK of BandsData with DFT reference bands.
+        dis_proj_max_range: [min, max] bounds for dis_proj_max optimization.
+            Defaults to [0.6, 0.95].
+        dis_proj_min_range: [min, max] bounds for dis_proj_min. If None or a
+            single-element list, dis_proj_min is held fixed at the default.
+        max_iterations: Maximum Bayesian optimization iterations.
+
+    Returns:
+        The AiiDA process node for the completed optimization workflow.
+    """
+    from aiida import orm
+    from aiida_koopmans.workgraphs.wannier90 import Wannier90OptimizeTaskViaBuilder
+    from aiida_quantumespresso.common.types import ElectronicType
+    from aiida_wannier90_workflows.common.types import (
+        OptimizeMetric,
+        OptimizeMuReference,
+        OptimizeStrategy,
+        WannierFrozenType,
+        WannierProjectionType,
+    )
+    from koopmans.aiida.dumping import dump_workgraph
+    from koopmans.aiida.progress import run_with_progress
+    from koopmans.aiida.setup import load_koopmans_profile
+
+    load_koopmans_profile()
+
+    if dis_proj_max_range is None:
+        dis_proj_max_range = [0.6, 0.95]
+    if dis_proj_min_range is None:
+        dis_proj_min_range = [0.01]  # single value = held fixed
+
+    _, structure = structure_to_aiida(structure_file)
+    codes = _load_codes(
+        required=("pw", "pw2wannier90", "wannier90"),
+        optional=("projwfc",),
+    )
+
+    external_projectors = _build_external_projectors(proj_dir)
+    bands_kpoints_node = orm.load_node(bands_kpoints_pk)
+    reference_bands_node = orm.load_node(reference_bands_pk)
+
+    w90_params: dict[str, Any] = {}
+    if min_nbnd is not None:
+        w90_params["num_bands"] = min_nbnd
+    if dis_froz_max is not None:
+        w90_params["dis_froz_max"] = dis_froz_max
+    if extra_w90_params:
+        w90_params.update(extra_w90_params)
+
+    overrides: dict[str, Any] = {
+        "wannier90": {
+            "wannier90": {
+                "parameters": w90_params,
+                "settings": {"parse_iteration_data": True},
+            },
+        },
+    }
+
+    wg = Wannier90OptimizeTaskViaBuilder.build(
+        codes=codes,
+        structure=structure,
+        pseudo_family=PSEUDO_LIBRARY,
+        overrides=overrides,
+        reference_bands=reference_bands_node,
+        optimize_strategy=OptimizeStrategy(strategy),
+        optimize_metric=OptimizeMetric.UNWEIGHTED_RMS,
+        optimize_mu_shift=mu_shift,
+        optimize_sigma=sigma,
+        optimize_mu_reference=OptimizeMuReference(mu_reference),
+        optimize_max_iterations=max_iterations,
+        optimize_disprojmax_range=dis_proj_max_range,
+        optimize_disprojmin_range=dis_proj_min_range,
+        projection_type=WannierProjectionType.ATOMIC_PROJECTORS_EXTERNAL,
+        external_projectors_path=str(proj_dir.resolve()),
+        external_projectors=external_projectors,
+        electronic_type=ElectronicType.METAL,
+        frozen_type=(
+            WannierFrozenType.FIXED_PLUS_PROJECTABILITY
+            if dis_froz_max is not None
+            else WannierFrozenType.PROJECTABILITY
+        ),
+        bands_kpoints=bands_kpoints_node,
+    )
+    run_with_progress(wg)
+
+    process_node = wg.process
+    if not process_node.is_finished_ok:
+        raise RuntimeError(
+            f"Optimize workflow failed with exit status {process_node.exit_status}: "
+            f"{process_node.exit_message}"
+        )
+
+    output_dir = working_dir / "wannierize_optimize"
     dump_workgraph(process_node, output_dir)
 
     return process_node

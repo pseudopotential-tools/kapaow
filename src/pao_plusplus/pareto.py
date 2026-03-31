@@ -520,7 +520,8 @@ def plot_pareto(
     ax.set_ylabel("maximum energy shift (Ha)")
 
     if filename is not None:
-        plt.savefig(filename, dpi=300)
+        from pao_plusplus.plotting import savefig
+        savefig(plt, filename)
         plt.close(fig)
     else:
         plt.show()

@@ -18,6 +18,16 @@ REVTEX_DOUBLE_COLUMN_WIDTH = 510 / 72  # double column
 COLORMAP = "viridis_r"
 COLOR_ALERT = "tab:red"
 
+RASTER_DPI = 300
+
+
+def savefig(fig_or_plt: Any, filename: Path | str, **kwargs: Any) -> None:
+    """Save a figure with appropriate DPI for raster formats."""
+    path = Path(filename)
+    if path.suffix.lower() != ".svg":
+        kwargs.setdefault("dpi", RASTER_DPI)
+    fig_or_plt.savefig(filename, **kwargs)
+
 sns.set_context("paper", font_scale=0.7)
 
 
@@ -107,7 +117,7 @@ def plot_wannier90_dat_files(
     axes[-1].set_xlim(0, 20)
 
     if filename is not None:
-        plt.savefig(filename)
+        savefig(plt, filename)
 
     return axes
 

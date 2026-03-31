@@ -126,7 +126,8 @@ def plot_cumulative_below_threshold(
     ax.legend()
 
     if filename is not None:
-        plt.savefig(filename, dpi=300)
+        from pao_plusplus.plotting import savefig
+        savefig(plt, filename)
         plt.close(fig)
     else:
         plt.show()
