@@ -154,45 +154,45 @@ def test_read_openmx_pao_real_file() -> None:
 
 def test_parse_select_single() -> None:
     """Single 's' should return [1]."""
-    assert parse_select("s") == [1]
+    assert parse_select(["s"]) == [1]
 
 
 def test_parse_select_sspd() -> None:
-    """'sspd' should return [2, 1, 1]."""
-    assert parse_select("sspd") == [2, 1, 1]
+    """['s', 's', 'p', 'd'] should return [2, 1, 1]."""
+    assert parse_select(["s", "s", "p", "d"]) == [2, 1, 1]
 
 
 def test_parse_select_case_insensitive() -> None:
     """Uppercase letters should work the same as lowercase."""
-    assert parse_select("SPD") == [1, 1, 1]
+    assert parse_select(["S", "P", "D"]) == [1, 1, 1]
 
 
 def test_parse_select_multiple_p() -> None:
-    """'ppp' should return [0, 3] (no s, three p)."""
-    assert parse_select("ppp") == [0, 3]
+    """['p', 'p', 'p'] should return [0, 3] (no s, three p)."""
+    assert parse_select(["p", "p", "p"]) == [0, 3]
 
 
 def test_parse_select_gap_in_channels() -> None:
-    """'sd' should return [1, 0, 1] with a zero-count p channel."""
-    assert parse_select("sd") == [1, 0, 1]
+    """['s', 'd'] should return [1, 0, 1] with a zero-count p channel."""
+    assert parse_select(["s", "d"]) == [1, 0, 1]
 
 
 def test_parse_select_all_letters() -> None:
     """All angular momentum letters should parse correctly."""
-    result = parse_select("spdfgh")
+    result = parse_select(["s", "p", "d", "f", "g", "h"])
     assert result == [1, 1, 1, 1, 1, 1]
 
 
 def test_parse_select_empty() -> None:
-    """Empty string should raise ValueError."""
+    """Empty list should raise ValueError."""
     with pytest.raises(ValueError, match="empty"):
-        parse_select("")
+        parse_select([])
 
 
 def test_parse_select_invalid_char() -> None:
     """Invalid character should raise ValueError."""
     with pytest.raises(ValueError, match="Unknown angular momentum"):
-        parse_select("x")
+        parse_select(["x"])
 
 
 # ---------------------------------------------------------------------------
