@@ -69,6 +69,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "cairosvg>=2.8.2",
     "aiida-wannier90",
+    "scikit-image",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
