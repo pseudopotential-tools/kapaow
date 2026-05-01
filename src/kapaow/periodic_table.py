@@ -185,7 +185,6 @@ def plot_periodic_table(
 def _collect_pareto_data(
     pareto_directory: Path,
     threshold_ha: float,
-    threshold_ry: float,
 ) -> tuple[list, list, dict[str, str], set[str]]:
     """Scan Pareto JSON files and return data for plotting."""
     plot_rows: list = []
@@ -220,9 +219,9 @@ def _collect_pareto_data(
                 unmodified_elements.add(element)
         else:
             logger.info(
-                "  %s: no point below %s Ry threshold",
+                "  %s: no point below %s Ha threshold",
                 element,
-                threshold_ry,
+                threshold_ha,
             )
     return plot_rows, table_rows, annotations, unmodified_elements
 
@@ -361,20 +360,18 @@ def _render_periodic_table(
 def plot_pareto_periodic_table(
     pareto_directory: Path,
     output: Path | None = None,
-    threshold_ry: float = 0.02,
+    threshold_ha: float = 0.01,
 ) -> None:
     """Plot a periodic table colored by smallest spread on the Pareto front.
 
-    Select points for which the max energy shift is below *threshold_ry*
-    (in Rydberg). Also dumps a .tex file (same stem as *output*) with a table of
-    element, r_half, width, and spread.
+    Select points for which the max energy shift is below *threshold_ha*
+    (in Hartree; 0.01 Ha ≈ 0.02 Ry, the conventional SSSP value). Also
+    dumps a .tex file (same stem as *output*) with a table of element,
+    r_half, width, and spread.
     """
-    threshold_ha = threshold_ry / 2  # Convert Ry to Ha
-
     plot_rows, table_rows, annotations, unmodified_elements = _collect_pareto_data(
         pareto_directory,
         threshold_ha,
-        threshold_ry,
     )
 
     _render_periodic_table(

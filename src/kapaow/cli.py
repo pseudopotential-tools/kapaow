@@ -406,7 +406,7 @@ def spread(
     "--threshold",
     type=float,
     required=True,
-    help="Maximum allowed energy shift in Hartree.",
+    help="Maximum allowed energy shift in Ha.",
 )
 @click.option(
     "--rc-min",
@@ -745,8 +745,8 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
 @click.option(
     "--energy-shift-threshold",
     type=float,
-    default=0.02,
-    help="Energy shift threshold in Ry; orbitals above this are plotted in red.",
+    default=0.01,
+    help="Energy shift threshold in Ha; orbitals above this are plotted in red.",
 )
 @add_option
 @click.option(
@@ -795,7 +795,7 @@ def animate(
         min_r_mid=min_r_mid,
         min_width=min_width,
         max_width=max_width,
-        energy_shift_threshold=energy_shift_threshold,
+        energy_shift_threshold_ha=energy_shift_threshold,
         output=output,
         on_frame=_on_frame,
     )
@@ -895,8 +895,9 @@ def spread_optimization(json_file: Path, output: Path, loglog: bool, logy: bool)
 @click.option(
     "--threshold",
     type=float,
-    default=0.02,
-    help="Energy shift threshold in Ry (only used with --color-by spread, default: 0.02).",
+    default=0.01,
+    show_default=True,
+    help="Energy shift threshold in Ha (only used with --color-by spread).",
 )
 @with_output_option(default_format=".html")
 def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output: Path) -> None:
@@ -911,7 +912,7 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     elif color_by == "spread":
         from kapaow.periodic_table import plot_pareto_periodic_table
 
-        plot_pareto_periodic_table(directory, output=output, threshold_ry=threshold)
+        plot_pareto_periodic_table(directory, output=output, threshold_ha=threshold)
     elif color_by == "rc":
         from kapaow.periodic_table import plot_rc_periodic_table
 
@@ -1112,7 +1113,11 @@ def compare_gauge_matrices(
 @plot.command(name="unshifted-vs-rc")
 @click.argument("grid_directory", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--threshold", type=float, default=0.02, help="Energy shift threshold in Ry (default: 0.02)."
+    "--threshold",
+    type=float,
+    default=0.01,
+    show_default=True,
+    help="Energy shift threshold in Ha.",
 )
 @with_output_option(default_format=".svg")
 @experimental
@@ -1125,7 +1130,7 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
 
     plot_cumulative_below_threshold(
         grid_directory,
-        threshold_ry=threshold,
+        threshold_ha=threshold,
         filename=output,
     )
     click.echo(f"Unshifted-vs-rc plot saved to {output}")

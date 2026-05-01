@@ -33,7 +33,7 @@ def generate_animation(
     min_r_mid: float = 5.0,
     min_width: float = 0.1,
     max_width: float = 5.0,
-    energy_shift_threshold: float = 0.02,
+    energy_shift_threshold_ha: float = 0.01,
     output: Path = Path("output.gif"),
     working_dir: Path = Path("tmp") / "animate",
     on_frame: Callable[[int, int, float, float], None] | None = None,
@@ -52,8 +52,10 @@ def generate_animation(
         Range for the midpoint of the confining potential.
     min_width, max_width
         Range for the half-width of the confining potential.
-    energy_shift_threshold
-        Energy shift threshold in Ry; orbitals above this are plotted in red.
+    energy_shift_threshold_ha
+        Energy shift threshold in Hartree; orbitals above this are
+        plotted in red. Default 0.01 Ha ≈ 0.02 Ry (the conventional
+        SSSP value).
     output
         Path to save the output GIF.
     working_dir
@@ -79,7 +81,6 @@ def generate_animation(
     )
     original_n_per_l = original_basis.to_pseudoatomic_basis().number_of_orbitals
     barrier_height = 10.0
-    threshold_ha = energy_shift_threshold / 2  # Convert Ry to Hartree
     atomic_femdvr_config = ATOMIC_FEMDVR_PATCHES.get(element)
 
     # Build a closed loop in (mid, width) space
@@ -143,7 +144,7 @@ def generate_animation(
             if is_added:
                 confined_colors.append(color_added)
                 ref_colors.append(color_added)
-            elif abs(l_shifts[n_l]) > threshold_ha:
+            elif abs(l_shifts[n_l]) > energy_shift_threshold_ha:
                 confined_colors.append(COLOR_ALERT)
                 ref_colors.append(color_original)
             else:

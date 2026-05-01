@@ -73,7 +73,7 @@ def _compute_rc_fractions(
 
 def plot_cumulative_below_threshold(
     grid_directory: Path,
-    threshold_ry: float = 0.02,
+    threshold_ha: float = 0.01,
     ri_factors: list[float] = _DEFAULT_RI_FACTORS,
     ri_factor_tol: float = 0.01,
     filename: Path | None = None,
@@ -86,8 +86,8 @@ def plot_cumulative_below_threshold(
     ----------
     grid_directory
         Directory containing per-element JSON files with grid data.
-    threshold_ry
-        Energy shift threshold in Rydberg.
+    threshold_ha
+        Energy shift threshold in Hartree.
     ri_factors
         The ri_factor values to plot.
     ri_factor_tol
@@ -95,8 +95,6 @@ def plot_cumulative_below_threshold(
     filename
         Output file path; if None, show interactively.
     """
-    threshold_ha = threshold_ry / 2
-
     element_data = _load_element_grid_data(grid_directory)
 
     if not element_data:
