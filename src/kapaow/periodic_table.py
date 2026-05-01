@@ -15,7 +15,6 @@ from periodic_trends import plotter
 from tqdm import tqdm
 from upf_tools import UPFDict
 
-from kapaow._experimental.optimize import create_optimizer
 from kapaow.basis import AtomicBasis
 from kapaow.extend import BasisExtension, BasisExtensionViaAddition
 from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
@@ -138,7 +137,13 @@ def _collect_projectability_data(
     and the best (max) target is extracted. Stdout / stderr from
     ``bayes_opt`` is suppressed so a directory of logs doesn't flood the
     terminal.
+
+    The bayes_opt machinery lives in :mod:`kapaow._experimental.optimize`,
+    so this helper is only callable when the ``[experimental]`` extras
+    are installed.
     """
+    from kapaow._experimental.optimize import create_optimizer
+
     rows: list = []
     for json_file in tqdm(list(json_directory.glob("*.log.json"))):
         element = json_file.stem[:-4]

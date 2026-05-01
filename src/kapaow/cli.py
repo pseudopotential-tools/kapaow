@@ -129,7 +129,26 @@ def enable_postmortem_debugger() -> None:
     sys.excepthook = _excepthook
 
 
-@click.group()
+class _KapaowGroup(click.Group):
+    """Click group that surfaces missing-extras errors as a clean usage hint.
+
+    :mod:`kapaow._experimental` raises :class:`ImportError` if the
+    AiiDA-backed extras aren't installed. By default that bubbles up as a
+    raw traceback; here we catch any ImportError originating in
+    ``kapaow._experimental`` and reraise it as a :class:`click.UsageError`
+    so the user sees a one-line install hint and exit code 2 instead.
+    """
+
+    def invoke(self, ctx: click.Context) -> Any:
+        try:
+            return super().invoke(ctx)
+        except ImportError as exc:
+            if "kapaow._experimental" in str(exc):
+                raise click.UsageError(str(exc)) from exc
+            raise
+
+
+@click.group(cls=_KapaowGroup)
 @click.version_option()
 @click.option("--debug", is_flag=True, help="Enable debug mode.")
 @click.option("-l", "--log", is_flag=True, help="Enable logging to kapaow.log.")
