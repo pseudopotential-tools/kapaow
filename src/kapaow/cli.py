@@ -65,6 +65,38 @@ def symmetrize_option(func: Callable) -> click.Command:
     )(func)
 
 
+def experimental(func: Callable) -> Callable:
+    """Mark a CLI command as requiring the ``[experimental]`` extras.
+
+    Two effects:
+
+    * Prepends ``[experimental]`` to the docstring so the marker shows
+      in ``kapaow --help`` listings, signalling to users that the
+      command will only work with the AiiDA-backed stack installed.
+    * Wraps the command body to catch :class:`ImportError` originating
+      in :mod:`kapaow._experimental` and reraise it as
+      :class:`click.UsageError`, so users without the extras see a
+      one-line install hint instead of a Python traceback.
+    """
+    import functools
+
+    if func.__doc__:
+        func.__doc__ = f"[experimental] {func.__doc__}"
+    else:
+        func.__doc__ = "[experimental]"
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return func(*args, **kwargs)
+        except ImportError as exc:
+            if "kapaow._experimental" in str(exc):
+                raise click.UsageError(str(exc)) from exc
+            raise
+
+    return wrapper
+
+
 def get_extension(add: tuple[str, ...]) -> BasisExtension | None:
     """Click-aware wrapper around :func:`kapaow.extend.parse_extension`.
 
@@ -126,26 +158,7 @@ def enable_postmortem_debugger() -> None:
     sys.excepthook = _excepthook
 
 
-class _KapaowGroup(click.Group):
-    """Click group that surfaces missing-extras errors as a clean usage hint.
-
-    :mod:`kapaow._experimental` raises :class:`ImportError` if the
-    AiiDA-backed extras aren't installed. By default that bubbles up as a
-    raw traceback; here we catch any ImportError originating in
-    ``kapaow._experimental`` and reraise it as a :class:`click.UsageError`
-    so the user sees a one-line install hint and exit code 2 instead.
-    """
-
-    def invoke(self, ctx: click.Context) -> Any:
-        try:
-            return super().invoke(ctx)
-        except ImportError as exc:
-            if "kapaow._experimental" in str(exc):
-                raise click.UsageError(str(exc)) from exc
-            raise
-
-
-@click.group(cls=_KapaowGroup)
+@click.group()
 @click.version_option()
 @click.option("--debug", is_flag=True, help="Enable debug mode.")
 @click.option("-l", "--log", is_flag=True, help="Enable logging to kapaow.log.")
@@ -299,6 +312,7 @@ def optimize() -> None:
 @optimize.command()
 @click.argument("upf", type=click.Path(exists=True, path_type=Path))
 @add_option
+@experimental
 def projectability(upf: Path, add: tuple[str, ...]) -> None:
     """Optimize PAOs to maximise their projectability via Bayesian optimization."""
     from kapaow._experimental.optimize import optimize as internal_optimize
@@ -468,6 +482,7 @@ def rc(
     help="Working directory for benchmark outputs (default: tmp/benchmark/<config_stem>).",
 )
 @symmetrize_option
+@experimental
 def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow stages
     config_path: Path,
     output: Path | None,
@@ -837,6 +852,7 @@ def paos(dat: list[Path], output: Path) -> None:
 @plot.command(name="projectability-optimization")
 @click.argument("log_file", type=click.Path(exists=True, path_type=Path))
 @with_output_option(default_format=".png")
+@experimental
 def projectability_optimization(log_file: Path, output: Path | None) -> None:
     """Plot the results of a projectability optimization."""
     from kapaow._experimental.optimize import plot_optimizer
@@ -919,6 +935,7 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
 )
 @symmetrize_option
 @with_output_option(default_format=".svg", from_config="config_file")
+@experimental
 def fat_bands(
     config_file: Path,
     working_dir: Path | None,
@@ -987,6 +1004,7 @@ def fat_bands(
     help="Manual override for the number of bands in the DFT calculation.",
 )
 @with_output_option(default_format=".svg", from_config="config_file")
+@experimental
 def compare_projectability(
     config_file: Path,
     working_dir: Path | None,
@@ -1044,6 +1062,7 @@ def compare_projectability(
     default=None,
     help="Manual override for the number of bands in the DFT calculation.",
 )
+@experimental
 def compare_gauge_matrices(
     config_file: Path,
     working_dir: Path | None,
@@ -1085,6 +1104,7 @@ def compare_gauge_matrices(
     "--threshold", type=float, default=0.02, help="Energy shift threshold in Ry (default: 0.02)."
 )
 @with_output_option(default_format=".svg")
+@experimental
 def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> None:
     """Plot cumulative fraction of elements below energy shift threshold vs rc.
 
@@ -1103,6 +1123,7 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
 @plot.command(name="optimize-trajectory")
 @click.argument("pk", type=int)
 @with_output_option(default_format=".svg")
+@experimental
 def optimize_trajectory(pk: int, output: Path) -> None:
     """Plot bands distance vs dis_proj_max from a Bayesian optimization run.
 
