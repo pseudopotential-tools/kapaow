@@ -71,7 +71,6 @@ dependencies = [
     "pydantic",
     "tqdm",
     "click",
-    "ipdb",
     "typing-extensions",
 ]
 

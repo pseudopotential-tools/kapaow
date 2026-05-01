@@ -22,7 +22,6 @@ from types import TracebackType
 from typing import Any
 
 import click
-import ipdb
 from upf_tools import UPFDict
 
 from kapaow.extend import (
@@ -117,14 +116,23 @@ def _describe_extension(upf: Path, extension: BasisExtension) -> str:
 
 
 def enable_postmortem_debugger() -> None:
-    """Replace sys.excepthook to start pdb on uncaught exceptions."""
+    """Replace sys.excepthook to drop into a post-mortem debugger.
+
+    Prefers :mod:`ipdb` for tab completion and syntax highlighting if it
+    is installed, otherwise falls back to the stdlib :mod:`pdb`. Either
+    way, this only fires when ``--debug`` is passed.
+    """
+    try:
+        import ipdb as _debugger
+    except ImportError:
+        import pdb as _debugger
 
     def _excepthook(
         exc_type: type[BaseException], exc_value: BaseException, exc_tb: TracebackType | None
     ) -> None:
         traceback.print_exception(exc_type, exc_value, exc_tb)
         click.echo(click.style("\nEntering post-mortem debugging...", fg="yellow"))
-        ipdb.post_mortem(exc_tb)
+        _debugger.post_mortem(exc_tb)
 
     sys.excepthook = _excepthook
 
