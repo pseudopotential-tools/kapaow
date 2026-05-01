@@ -511,24 +511,15 @@ def benchmark(
     )
     click.echo("DFT bands computed.")
 
-    # Resolve dis_froz_max from CBM-relative value
-    dis_froz_max_value: float | None = None
-    if cfg.dis_froz_max_wrt_cbm is not None:
-        import numpy as _np
-
-        # band_plot_data.energies are Fermi-shifted; CBM = min energy > 0
-        energies = bands_result.band_plot_data.energies
-        positive_energies = energies[energies > 0]
-        if len(positive_energies) == 0:
-            raise click.UsageError(
-                "No conduction bands found above Fermi level; cannot determine CBM."
-            )
-        cbm = float(positive_energies.min())
-        dis_froz_max_value = cbm + cfg.dis_froz_max_wrt_cbm
+    # The aiida-wannier90-workflows base workchain runs with
+    # shift_energy_windows=True, which adds the LUMO (insulator) or Fermi
+    # energy (metal) to dis_froz_max before writing the .win file. So we pass
+    # the user's CBM-relative offset through unchanged.
+    dis_froz_max_value: float | None = cfg.dis_froz_max_wrt_cbm
+    if dis_froz_max_value is not None:
         click.echo(
-            f"CBM = {cbm:.4f} eV (relative to Fermi level), "
-            f"dis_froz_max = CBM + {cfg.dis_froz_max_wrt_cbm} = {dis_froz_max_value:.4f} eV "
-            f"(relative to Fermi level, will be shifted to absolute by workflow)"
+            f"dis_froz_max = CBM + {dis_froz_max_value} eV "
+            "(shifted to absolute by Wannier90 workflow)"
         )
 
     optimize_strategy = optimize_mode.value if optimize_mode != OptimizeDisThresholds.NONE else None
