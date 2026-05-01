@@ -14,6 +14,7 @@ executed twice:
     https://click.palletsprojects.com/en/8.1.x/setuptools/#setuptools-integration
 """
 
+import logging
 import sys
 import traceback
 from collections.abc import Callable
@@ -38,6 +39,8 @@ from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
 __all__ = [
     "main",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def add_option(func: Callable) -> click.Command:
@@ -690,8 +693,16 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
                     traj_plot = working_dir / f"{seed}_optimize_trajectory.svg"
                     plot_optimize_trajectory(trials, filename=traj_plot)
                     click.echo(f"Optimize trajectory plot saved to {traj_plot}")
-        except Exception as e:
-            click.echo(f"Could not extract optimize trajectory: {e}")
+        except Exception as exc:
+            # Best-effort enhancement: the rest of the benchmark output is
+            # still valid even if we can't pull the optimization trajectory
+            # back out of AiiDA. Log the full traceback (visible with
+            # ``--log``) and surface a one-line note to the user.
+            logger.exception("Failed to extract optimize trajectory")
+            click.echo(
+                f"Skipping optimize-trajectory plot ({type(exc).__name__}: {exc}). "
+                "Run with --log for the full traceback."
+            )
 
 
 # ---------------------------------------------------------------------------
