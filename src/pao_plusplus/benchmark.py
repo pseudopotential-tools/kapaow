@@ -708,6 +708,9 @@ def _plot_disentanglement_panel(
     """Plot the disentanglement convergence panel (Omega_I vs iteration)."""
     best_dis = min(r.dis_omega_i[-1] for r in results if r.dis_iterations is not None)
     margin_dis = 0.02
+    data_max = max(
+        float(np.max(r.dis_omega_i)) for r in results if r.dis_iterations is not None
+    )
     for r in results:
         if r.dis_iterations is not None:
             (line,) = ax.plot(
@@ -717,8 +720,8 @@ def _plot_disentanglement_panel(
             )
             n_iter = int(r.dis_iterations[-1])
             _annotate_convergence(ax, n_iter, r.dis_omega_i[-1], line.get_color())
+    ax.set_ylim(best_dis - margin_dis, data_max)
     ax.set_yscale("function", functions=_sqrt_shifted_scale(best_dis - margin_dis))
-    ax.set_ylim(bottom=best_dis - margin_dis)
     ax.set_xscale("log")
     ax.set_xlim(left=1)
     ax.set_xlabel("Disentanglement iteration")
@@ -733,6 +736,9 @@ def _plot_spread_panel(
     """Plot the spread minimisation convergence panel (Omega_Total vs cycle)."""
     best_spread = min(r.spread_omega_total[-1] for r in results if r.spread_cycles is not None)
     margin_spread = 0.02
+    data_max = max(
+        float(np.max(r.spread_omega_total)) for r in results if r.spread_cycles is not None
+    )
     for r in results:
         if r.spread_cycles is not None:
             (line,) = ax.plot(
@@ -741,8 +747,8 @@ def _plot_spread_panel(
             )
             n_iter = int(r.spread_cycles[-1])
             _annotate_convergence(ax, n_iter, r.spread_omega_total[-1], line.get_color())
+    ax.set_ylim(best_spread - margin_spread, data_max)
     ax.set_yscale("function", functions=_sqrt_shifted_scale(best_spread - margin_spread))
-    ax.set_ylim(bottom=best_spread - margin_spread)
     ax.set_xscale("log")
     ax.set_xlim(left=1)
     ax.set_xlabel("Spread minimisation iteration")
