@@ -479,6 +479,7 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     Example:
         kapaow benchmark benchmark.toml
     """
+    from kapaow._experimental.workflows import run_bands_workflow
     from kapaow.benchmark import (
         format_benchmark_table,
         generate_dat_files,
@@ -487,7 +488,6 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
         run_benchmark,
     )
     from kapaow.config import BenchmarkConfig, OptimizeDisThresholds
-    from kapaow.workflows import run_bands_workflow
 
     cfg = BenchmarkConfig.from_toml(config_path)
     structure = cfg.structure
@@ -554,12 +554,12 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     # Compute fat bands if there is a single set of projectors
     channel_projectabilities = None
     if len(combinations) == 1:
+        from kapaow._experimental.projectability import _make_qe_input_wfc
         from kapaow.fat_bands import (
             build_atoms_dict,
             compute_amn_from_wfc,
             compute_projectability_per_channel,
         )
-        from kapaow.projectability import _make_qe_input_wfc
 
         bessel_files = bessel_combinations[0]
         bands_calc_dir = bands_result.bands_calc_dir

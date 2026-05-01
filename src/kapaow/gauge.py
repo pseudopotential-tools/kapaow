@@ -46,7 +46,7 @@ def orthogonalize_amn(
     """
     num_kpoints = smn.shape[0]
 
-    from kapaow.projectability import active_orbital_mask
+    from kapaow._experimental.projectability import active_orbital_mask
 
     # The set of active orbitals is the same at every k-point because it
     # depends only on which radial functions have nonzero norm.
@@ -220,13 +220,13 @@ def compare_matrices(
     num_bands
         Manual override for the number of bands.
     """
+    from kapaow._experimental.projectability import _make_qe_input_wfc
+    from kapaow._experimental.workflows import run_qe_workflow
     from kapaow.fat_bands import (
         build_atoms_dict,
         compute_amn_from_wfc,
         prepare_comparison_sets,
     )
-    from kapaow.projectability import _make_qe_input_wfc
-    from kapaow.workflows import run_qe_workflow
 
     if working_dir is None:
         working_dir = Path("tmp") / "gauge_comparison" / config_path.stem

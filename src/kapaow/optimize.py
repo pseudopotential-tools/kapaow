@@ -9,11 +9,12 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
+from kapaow._experimental.projectability import compute_projectability_cached, preload_material
+from kapaow._experimental.workflows import run_bands_workflow, run_qe_workflow
 from kapaow.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
 from kapaow.basis import AtomicBasis
 from kapaow.data.sssp.structures import input_files
 from kapaow.extend import BasisExtension, BasisExtensionViaAddition
-from kapaow.projectability import compute_projectability_cached, preload_material
 from kapaow.solve import (
     ATOMIC_FEMDVR_PATCHES,
     DEFAULT_RC_MAX,
@@ -23,7 +24,6 @@ from kapaow.solve import (
     compute_spread,
     solve_and_export,
 )
-from kapaow.workflows import run_bands_workflow, run_qe_workflow
 
 
 def _extract_element(upf_path: Path) -> str:

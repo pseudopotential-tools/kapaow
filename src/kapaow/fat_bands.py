@@ -20,7 +20,7 @@ from qe_wavefunctions.qe_input_wfcs import QEInputWFC
 from qe_wavefunctions.qe_projections import compute_atomic_projections
 from scipy.interpolate import make_interp_spline
 
-from kapaow.workflows import BandPlotData
+from kapaow._experimental.workflows import BandPlotData
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +333,7 @@ def build_atoms_dict_from_structure(
     lattice_vectors
         3x3 array of lattice vectors in Bohr.
     """
-    from kapaow.workflows import structure_to_aiida
+    from kapaow._experimental.workflows import structure_to_aiida
 
     _, structure = structure_to_aiida(structure_file)
     atoms = structure.get_ase()
@@ -634,8 +634,8 @@ def compute_amn_for_comparison_sets(
     band_plot_data
         Band structure data shared across all sets.
     """
-    from kapaow.projectability import _make_qe_input_wfc
-    from kapaow.workflows import run_bands_workflow
+    from kapaow._experimental.projectability import _make_qe_input_wfc
+    from kapaow._experimental.workflows import run_bands_workflow
 
     prep = prepare_comparison_sets(config_path, working_dir, num_bands=num_bands)
 
@@ -726,8 +726,8 @@ def generate_projectability_comparison(
         Manual override for the number of bands. Takes precedence over both
         the TOML ``num_bands`` field and the automatic calculation.
     """
+    from kapaow._experimental.projectability import suggest_disentanglement_thresholds
     from kapaow.config import ProjectabilityComparisonConfig
-    from kapaow.projectability import suggest_disentanglement_thresholds
 
     config = ProjectabilityComparisonConfig.from_toml(config_path)
 
@@ -981,7 +981,7 @@ def generate_fat_bands_plot(
     filename
         If provided, save the figure to this path.
     """
-    from kapaow.projectability import _make_qe_input_wfc
+    from kapaow._experimental.projectability import _make_qe_input_wfc
 
     pwi_file = bands_calc_dir / "inputs" / "aiida.in"
     wfc_dir = bands_calc_dir / "outputs"

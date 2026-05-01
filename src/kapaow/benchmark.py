@@ -476,7 +476,10 @@ def run_benchmark(
     Returns:
         List of WannierBenchmarkResult, one per combination.
     """
-    from kapaow.workflows import run_wannierize_optimize_workflow, run_wannierize_workflow
+    from kapaow._experimental.workflows import (
+        run_wannierize_optimize_workflow,
+        run_wannierize_workflow,
+    )
 
     optimize = optimize_strategy in ("bayesian", "grid")
     otsu = optimize_strategy == "otsu"
@@ -495,7 +498,7 @@ def run_benchmark(
     # Pre-compute NSCF wavefunctions for Otsu (shared across combinations)
     _otsu_qe_result = None
     if otsu:
-        from kapaow.workflows import run_qe_workflow
+        from kapaow._experimental.workflows import run_qe_workflow
 
         _otsu_qe_result = run_qe_workflow(
             structure_file, working_dir, min_nbnd=min_nbnd, periodic=periodic
@@ -517,11 +520,11 @@ def run_benchmark(
         combo_dis_proj_max = dis_proj_max
         combo_dis_proj_min = dis_proj_min
         if otsu:
-            from kapaow.fat_bands import build_atoms_dict, compute_amn_from_wfc
-            from kapaow.projectability import (
+            from kapaow._experimental.projectability import (
                 _make_qe_input_wfc,
                 suggest_disentanglement_thresholds,
             )
+            from kapaow.fat_bands import build_atoms_dict, compute_amn_from_wfc
 
             atoms_dict, lattice_vectors = build_atoms_dict(_otsu_qe_result.nscf_input_file)
             qe_wfc = _make_qe_input_wfc(_otsu_qe_result.nscf_wfc_dir, lattice_vectors)
