@@ -1,8 +1,9 @@
 """Generate GIF animations showing PAOs under varying confinement."""
 
+from collections.abc import Callable
 from pathlib import Path
 
-import matplotlib.cm as cm
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
@@ -31,7 +32,7 @@ def generate_animation(
     energy_shift_threshold: float = 0.02,
     output: Path = Path("output.gif"),
     working_dir: Path = Path("tmp") / "animate",
-    on_frame: None = None,
+    on_frame: Callable[[int, int, float, float], None] | None = None,
 ) -> Path:
     """Generate a GIF showing PAOs under varying confinement.
 
@@ -62,7 +63,7 @@ def generate_animation(
     Path
         The path to the saved GIF.
     """
-    cmap = cm.get_cmap(COLORMAP)
+    cmap = mpl.colormaps[COLORMAP]
     color_original = cmap(0.2)
     color_added = cmap(0.6)
     color_potential = cmap(0.8)

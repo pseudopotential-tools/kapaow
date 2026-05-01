@@ -6,7 +6,7 @@ import os
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-import matplotlib.cm as cm
+import matplotlib as mpl
 import pandas as pd
 from ase.data import atomic_numbers
 from bokeh.io import export_png, export_svg, save
@@ -21,7 +21,7 @@ from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)
 
-_BOKEH_CMAP = cm.get_cmap(COLORMAP)
+_BOKEH_CMAP = mpl.colormaps[COLORMAP]
 
 _BOKEH_WIDTH_PX = 1050
 # Scale factor so exported PNG has the correct physical width for RevTeX double column at 300 DPI
