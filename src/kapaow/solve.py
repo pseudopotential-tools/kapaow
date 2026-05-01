@@ -80,9 +80,9 @@ def solve_pseudoatomic_problem(
     atomic_femdvr_config.output.output_wfc_qe = True
     atomic_femdvr_config.output.output_wfc_bessel = output_wfc_bessel
 
-    # Remove any pre-existing hdf5 files
-    hdf5_files = Path().glob("*_density_potential.h5")
-    for hdf5_file in hdf5_files:
+    # Remove any pre-existing hdf5 files in the working dir so a stale
+    # density/potential file from a previous run isn't picked up.
+    for hdf5_file in working_dir.glob("*_density_potential.h5"):
         hdf5_file.unlink()
 
     # Solve the pseudoatomic problem
