@@ -1,4 +1,4 @@
-pao-plusplus |release| Documentation
+kapaow |release| Documentation
 ====================================
 
 Cookiecutter

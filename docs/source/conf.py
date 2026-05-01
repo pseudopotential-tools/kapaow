@@ -180,7 +180,7 @@ htmlhelp_basename = "kapaow_doc"
 #     (
 #         master_doc,
 #         'kapaow.tex',
-#         'pao-plusplus Documentation',
+#         'kapaow Documentation',
 #         author,
 #         'manual',
 #     ),
@@ -194,7 +194,7 @@ man_pages = [
     (
         master_doc,
         "kapaow",
-        "pao-plusplus Documentation",
+        "kapaow Documentation",
         [author],
         1,
     ),
@@ -209,7 +209,7 @@ texinfo_documents = [
     (
         master_doc,
         "kapaow",
-        "pao-plusplus Documentation",
+        "kapaow Documentation",
         author,
         "Edward Linscott",
         "Find optimal pseudoatomic orbitals for representing bands in bulk systems",

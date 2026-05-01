@@ -1,31 +1,31 @@
 <!--
 <p align="center">
-  <img src="https://github.com/pseudopotential-tools/pao-plusplus/raw/main/docs/source/logo.png" height="150">
+  <img src="https://github.com/pseudopotential-tools/kapaow/raw/main/docs/source/logo.png" height="150">
 </p>
 -->
 
 <h1 align="center">
-  pao-plusplus
+  kapaow
 </h1>
 
 <p align="center">
-    <a href="https://github.com/pseudopotential-tools/pao-plusplus/actions/workflows/tests.yml">
-        <img alt="Tests" src="https://github.com/pseudopotential-tools/pao-plusplus/actions/workflows/tests.yml/badge.svg" /></a>
+    <a href="https://github.com/pseudopotential-tools/kapaow/actions/workflows/tests.yml">
+        <img alt="Tests" src="https://github.com/pseudopotential-tools/kapaow/actions/workflows/tests.yml/badge.svg" /></a>
     <a href="https://pypi.org/project/kapaow">
         <img alt="PyPI" src="https://img.shields.io/pypi/v/kapaow" /></a>
     <a href="https://pypi.org/project/kapaow">
         <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/kapaow" /></a>
-    <a href="https://github.com/pseudopotential-tools/pao-plusplus/blob/main/LICENSE">
+    <a href="https://github.com/pseudopotential-tools/kapaow/blob/main/LICENSE">
         <img alt="PyPI - License" src="https://img.shields.io/pypi/l/kapaow" /></a>
     <a href='https://kapaow.readthedocs.io/en/latest/?badge=latest'>
         <img src='https://readthedocs.org/projects/kapaow/badge/?version=latest' alt='Documentation Status' /></a>
-    <a href="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main">
-        <img src="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main/graph/badge.svg" alt="Codecov status" /></a>
+    <a href="https://codecov.io/gh/pseudopotential-tools/kapaow/branch/main">
+        <img src="https://codecov.io/gh/pseudopotential-tools/kapaow/branch/main/graph/badge.svg" alt="Codecov status" /></a>
     <a href="https://github.com/cthoyt/cookiecutter-python-package">
         <img alt="Cookiecutter template from @cthoyt" src="https://img.shields.io/badge/Cookiecutter-snekpack-blue" /></a>
     <a href="https://github.com/astral-sh/ruff">
         <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff" style="max-width:100%;"></a>
-    <a href="https://github.com/pseudopotential-tools/pao-plusplus/blob/main/.github/CODE_OF_CONDUCT.md">
+    <a href="https://github.com/pseudopotential-tools/kapaow/blob/main/.github/CODE_OF_CONDUCT.md">
         <img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Contributor Covenant"/></a>
     <!-- uncomment if you archive on zenodo
     <a href="https://zenodo.org/badge/latestdoi/XXXXXX">
@@ -73,20 +73,20 @@ $ python3 -m pip install kapaow
 The most recent code and data can be installed directly from GitHub with uv:
 
 ```console
-$ uv pip install git+https://github.com/pseudopotential-tools/pao-plusplus.git
+$ uv pip install git+https://github.com/pseudopotential-tools/kapaow.git
 ```
 
 or with pip:
 
 ```console
-$ python3 -m pip install git+https://github.com/pseudopotential-tools/pao-plusplus.git
+$ python3 -m pip install git+https://github.com/pseudopotential-tools/kapaow.git
 ```
 
 ## 👐 Contributing
 
 Contributions, whether filing an issue, making a pull request, or forking, are
 appreciated. See
-[CONTRIBUTING.md](https://github.com/pseudopotential-tools/pao-plusplus/blob/master/.github/CONTRIBUTING.md)
+[CONTRIBUTING.md](https://github.com/pseudopotential-tools/kapaow/blob/master/.github/CONTRIBUTING.md)
 for more information on getting involved.
 
 ## 👋 Attribution
@@ -142,8 +142,8 @@ code contribution.
 To install in development mode, use the following:
 
 ```console
-$ git clone git+https://github.com/pseudopotential-tools/pao-plusplus.git
-$ cd pao-plusplus
+$ git clone git+https://github.com/pseudopotential-tools/kapaow.git
+$ cd kapaow
 $ uv pip install -e .
 ```
 
@@ -164,15 +164,15 @@ $ tox -e py
 ```
 
 Additionally, these tests are automatically re-run with each commit in a
-[GitHub Action](https://github.com/pseudopotential-tools/pao-plusplus/actions?query=workflow%3ATests).
+[GitHub Action](https://github.com/pseudopotential-tools/kapaow/actions?query=workflow%3ATests).
 
 ### 📖 Building the Documentation
 
 The documentation can be built locally using the following:
 
 ```console
-$ git clone git+https://github.com/pseudopotential-tools/pao-plusplus.git
-$ cd pao-plusplus
+$ git clone git+https://github.com/pseudopotential-tools/kapaow.git
+$ cd kapaow
 $ tox -e docs
 $ open docs/build/html/index.html
 ```
@@ -231,7 +231,7 @@ to each release of your package. Do the following for each repository:
 
 After these steps, you're ready to go! After you make "release" on GitHub (steps
 for this are below), you can navigate to
-https://zenodo.org/account/settings/github/repository/pseudopotential-tools/pao-plusplus to
+https://zenodo.org/account/settings/github/repository/pseudopotential-tools/kapaow to
 see the DOI for the release and link to the Zenodo record for it.
 
 #### Registering with the Python Package Index (PyPI)
@@ -293,7 +293,7 @@ This script does the following:
 
 #### Releasing on GitHub
 
-1. Navigate to https://github.com/pseudopotential-tools/pao-plusplus/releases/new to draft a
+1. Navigate to https://github.com/pseudopotential-tools/kapaow/releases/new to draft a
    new release
 2. Click the "Choose a Tag" dropdown and select the tag corresponding to the
    release you just made
