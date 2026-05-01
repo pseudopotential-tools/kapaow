@@ -12,9 +12,9 @@ from upf_tools import UPFDict
 
 from kapaow.basis import AngularMomentum, AtomicBasis
 from kapaow.extend import BasisExtension, BasisExtensionViaAddition
-from kapaow.optimize import ATOMIC_FEMDVR_PATCHES
 from kapaow.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
 from kapaow.solve import (
+    ATOMIC_FEMDVR_PATCHES,
     DEFAULT_RC_MAX,
     DEFAULT_RC_MIN,
     DEFAULT_RI_FACTOR_MAX,

@@ -24,6 +24,19 @@ DEFAULT_RI_FACTOR_MIN = 0.0
 DEFAULT_RI_FACTOR_MAX = 0.95
 
 
+# Per-element overrides for the inner pseudoatomic SCF. Keep these alongside
+# the solver they parameterise so consumers (pareto, rc_search, animate)
+# don't have to import from heavier modules to reach them.
+ATOMIC_FEMDVR_PATCHES: dict[str, PseudoAtomicInput] = {
+    "Cr": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
+    "Cu": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
+    "Pd": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
+    "At": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
+    "Sb": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
+    "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
+}
+
+
 def solve_pseudoatomic_problem(
     upf_path: Path,
     rc: float = DEFAULT_RC_MAX,

@@ -15,24 +15,16 @@ from kapaow.basis import AtomicBasis
 from kapaow.data.sssp.structures import input_files
 from kapaow.extend import BasisExtension, BasisExtensionViaAddition
 from kapaow.projectability import compute_projectability_cached, preload_material
-from kapaow.solve import PseudoAtomicInput, compute_spread, solve_and_export
+from kapaow.solve import (
+    ATOMIC_FEMDVR_PATCHES,
+    DEFAULT_RC_MAX,
+    DEFAULT_RC_MIN,
+    DEFAULT_RI_FACTOR_MAX,
+    DEFAULT_RI_FACTOR_MIN,
+    compute_spread,
+    solve_and_export,
+)
 from kapaow.workflows import run_bands_workflow, run_qe_workflow
-
-RI_LOWER = 0.0
-RI_UPPER = 0.95
-RC_LOWER = 5.0
-RC_UPPER = 15.0
-
-
-ATOMIC_FEMDVR_PATCHES = {
-    "Cr": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
-    "Cu": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
-    "Pd": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
-    "At": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
-    "Sb": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
-    "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
-}
-
 
 
 def _extract_element(upf_path: Path) -> str:
@@ -179,8 +171,8 @@ def optimize(
         nonlocal step_counter
 
         # Rescaling
-        rc = RC_LOWER + (RC_UPPER - RC_LOWER) * rc
-        ri_factor = RI_LOWER + (RI_UPPER - RI_LOWER) * ri_factor
+        rc = DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * rc
+        ri_factor = DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * ri_factor
 
         dat_filename = f"{element}_rc_{rc:.10f}_ri-factor_{ri_factor:.10f}.dat"
 
@@ -322,8 +314,8 @@ def _plot(
             )
         ]
     )
-    x_grid_rescaled = RC_LOWER + (RC_UPPER - RC_LOWER) * x_grid
-    y_grid_rescaled = RI_LOWER + (RI_UPPER - RI_LOWER) * y_grid
+    x_grid_rescaled = DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * x_grid
+    y_grid_rescaled = DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * y_grid
 
     mu, _ = optimizer._gp.predict(grid, return_std=True)
     z_grid = 1 - mu.reshape(x_grid.shape)  # 1 - F for log scale
@@ -356,15 +348,15 @@ def _plot(
     for res in optimizer.res:
         [xv, yv] = res["params"].values()
         ax.scatter(
-            RC_LOWER + (RC_UPPER - RC_LOWER) * xv,
-            RI_LOWER + (RI_UPPER - RI_LOWER) * yv,
+            DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * xv,
+            DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * yv,
             marker="x",
             color="w",
         )
     [xv, yv] = optimizer.max["params"].values()
     ax.scatter(
-        RC_LOWER + (RC_UPPER - RC_LOWER) * xv,
-        RI_LOWER + (RI_UPPER - RI_LOWER) * yv,
+        DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * xv,
+        DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * yv,
         marker="x",
         color="r",
     )

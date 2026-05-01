@@ -11,9 +11,13 @@ from upf_tools import UPFDict
 from kapaow.basis import AngularMomentum, AtomicBasis, Subshell
 from kapaow.extend import BasisExtension
 from kapaow.io import read_wannier90_dat_file
-from kapaow.optimize import ATOMIC_FEMDVR_PATCHES
 from kapaow.plotting import COLOR_ALERT, COLORMAP, plot_wannier90_dat_file
-from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
+from kapaow.solve import (
+    ATOMIC_FEMDVR_PATCHES,
+    DEFAULT_RC_MAX,
+    DEFAULT_RI_FACTOR_MAX,
+    solve_and_export,
+)
 
 
 def generate_animation(
