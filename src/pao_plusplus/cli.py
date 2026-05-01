@@ -344,6 +344,85 @@ def spread(
     click.echo(f"Pareto plot saved to {output}")
 
 
+@optimize.command("rc")
+@click.argument("upf", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--ri-factor",
+    type=float,
+    default=DEFAULT_RI_FACTOR_MAX,
+    show_default=True,
+    help="Fixed inner radius factor.",
+)
+@click.option(
+    "--threshold",
+    type=float,
+    required=True,
+    help="Maximum allowed energy shift in Hartree.",
+)
+@click.option(
+    "--rc-min",
+    type=float,
+    default=None,
+    help="Lower bound of the rc bracket.",
+)
+@click.option(
+    "--rc-max",
+    type=float,
+    default=None,
+    help="Upper bound of the rc bracket.",
+)
+@click.option(
+    "--tol",
+    type=float,
+    default=0.05,
+    show_default=True,
+    help="Absolute tolerance on rc at which to stop bisecting.",
+)
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Save the search result to this JSON file "
+    "(default: tmp/optimize/rc_search/<upf_stem>.json).",
+)
+@add_option
+def rc(
+    upf: Path,
+    ri_factor: float,
+    threshold: float,
+    rc_min: float | None,
+    rc_max: float | None,
+    tol: float,
+    json_path: Path | None,
+    add: tuple[str, ...],
+) -> None:
+    """Bisect over rc to find the smallest value satisfying an energy-shift threshold."""
+    from pao_plusplus.rc_search import dump_rc_search_json, find_smallest_rc
+    from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
+
+    extension = get_extension(add)
+    rc_value, points = find_smallest_rc(
+        upf,
+        ri_factor=ri_factor,
+        threshold=threshold,
+        extension=extension,
+        rc_min=rc_min if rc_min is not None else DEFAULT_RC_MIN,
+        rc_max=rc_max if rc_max is not None else DEFAULT_RC_MAX,
+        tol=tol,
+    )
+    effective_json = (
+        json_path
+        if json_path is not None
+        else Path("tmp/optimize/rc_search") / f"{upf.stem}.json"
+    )
+    dump_rc_search_json(
+        rc_value, points, ri_factor, threshold, effective_json, upf_path=upf, add=add
+    )
+    click.echo(f"Smallest rc: {rc_value:.4f}")
+    click.echo(f"Result saved to {effective_json}")
+
+
 # ---------------------------------------------------------------------------
 # benchmark
 # ---------------------------------------------------------------------------
@@ -717,7 +796,7 @@ def spread_optimization(json_file: Path, output: Path, loglog: bool, logy: bool)
 @click.argument("directory", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--color-by",
-    type=click.Choice(["projectability", "spread"]),
+    type=click.Choice(["projectability", "spread", "rc"]),
     required=True,
     help="Metric to color the periodic table by.",
 )
@@ -732,7 +811,8 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     """Plot a periodic table colored by a PAO quality metric.
 
     DIRECTORY contains per-element data files: optimizer log JSONs for
-    --color-by projectability, or Pareto front JSONs for --color-by spread.
+    --color-by projectability, Pareto front JSONs for --color-by spread,
+    or rc-search JSONs for --color-by rc.
     """
     if color_by == "projectability":
 
@@ -744,6 +824,10 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
         from pao_plusplus.periodic_table import plot_pareto_periodic_table
 
         plot_pareto_periodic_table(directory, output=output, threshold_ry=threshold)
+    elif color_by == "rc":
+        from pao_plusplus.periodic_table import plot_rc_periodic_table
+
+        plot_rc_periodic_table(directory, output=output)
 
 
 @plot.command(name="fat-bands")

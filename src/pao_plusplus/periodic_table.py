@@ -17,7 +17,7 @@ from tqdm import tqdm
 from upf_tools import UPFDict
 
 from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.extend import BasisExtensionViaAddition
+from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
 from pao_plusplus.optimize import create_optimizer
 from pao_plusplus.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
@@ -41,13 +41,22 @@ _NOBLE_GAS_CORES = [
 ]
 
 
-def _basis_annotation(upf_path: Path) -> str:
-    """Build an annotation like '[He]2s2p + 3s' for a given UPF file."""
+def _basis_annotation(
+    upf_path: Path,
+    extension: BasisExtension | None = None,
+) -> str:
+    """Build an annotation like '[He]2s2p+3s' for a given UPF file.
+
+    If *extension* is None no extended orbitals are appended and the
+    annotation is just the core-suppressed original basis.
+    """
     upf_dict = UPFDict.from_upf(upf_path)
     basis = AtomicBasis.from_upf(upf_path)
-    ext = BasisExtensionViaAddition()
-    extended = ext.extend_atomic(basis)
-    added = [s for s in extended.subshells if s not in basis.subshells]
+    if extension is not None:
+        extended = extension.extend_atomic(basis)
+        added = [s for s in extended.subshells if s not in basis.subshells]
+    else:
+        added = []
 
     element = upf_dict["header"]["element"].strip()
     z = int(upf_dict["header"]["z_valence"])
@@ -68,6 +77,9 @@ def _basis_annotation(upf_path: Path) -> str:
     for s in basis.subshells:
         orig_parts.append(f"{s.n}{l_names[s.l.value]}")
     orig_str = core_label + "".join(orig_parts)
+
+    if not added:
+        return orig_str
 
     # Added subshells
     added_parts = []
@@ -173,7 +185,9 @@ def _collect_pareto_data(
         if "upf_path" in raw:
             upf_path = Path(raw["upf_path"])
             if upf_path.exists():
-                annotations[element] = _basis_annotation(upf_path)
+                annotations[element] = _basis_annotation(
+                    upf_path, extension=BasisExtensionViaAddition()
+                )
 
         pareto_data = [p for p in raw["points"] if p["pareto"]]
         candidates = [p for p in pareto_data if p["max_energy_shift"] < threshold_ha]
@@ -288,28 +302,17 @@ def _dump_latex_table(table_rows: list, output: Path) -> None:
     logger.info("LaTeX table saved to %s", tex_path)
 
 
-def plot_pareto_periodic_table(
-    pareto_directory: Path,
-    output: Path | None = None,
-    threshold_ry: float = 0.02,
+def _render_periodic_table(
+    plot_rows: list,
+    annotations: dict[str, str],
+    cbar_title: str,
+    output: Path | None,
+    unmodified_elements: set[str] | None = None,
 ) -> None:
-    """Plot a periodic table colored by smallest spread on the Pareto front.
-
-    Select points for which the max energy shift is below *threshold_ry*
-    (in Rydberg). Also dumps a .tex file (same stem as *output*) with a table of
-    element, r_half, width, and spread.
-    """
+    """Build and render a Bokeh periodic-table plot from pre-collected rows."""
     if output is not None:
         if output.suffix not in {".png", ".svg", ".pdf", ".html"}:
             raise ValueError(f"Unsupported output format: {output.suffix}")
-
-    threshold_ha = threshold_ry / 2  # Convert Ry to Ha
-
-    plot_rows, table_rows, annotations, unmodified_elements = _collect_pareto_data(
-        pareto_directory,
-        threshold_ha,
-        threshold_ry,
-    )
 
     plot_df = pd.DataFrame(plot_rows, columns=["Element", "Score"])
     p = plotter(
@@ -322,7 +325,7 @@ def plot_pareto_periodic_table(
         width=_BOKEH_WIDTH_PX,
         cbar_fontsize=8,
         cmap=_BOKEH_CMAP,
-        cbar_title="Spread of added PAO (Bohr^2)",
+        cbar_title=cbar_title,
         rescale_canvas=True,
     )
 
@@ -339,5 +342,79 @@ def plot_pareto_periodic_table(
         show_(p)
     _save_or_show(p, output)
 
+
+def plot_pareto_periodic_table(
+    pareto_directory: Path,
+    output: Path | None = None,
+    threshold_ry: float = 0.02,
+) -> None:
+    """Plot a periodic table colored by smallest spread on the Pareto front.
+
+    Select points for which the max energy shift is below *threshold_ry*
+    (in Rydberg). Also dumps a .tex file (same stem as *output*) with a table of
+    element, r_half, width, and spread.
+    """
+    threshold_ha = threshold_ry / 2  # Convert Ry to Ha
+
+    plot_rows, table_rows, annotations, unmodified_elements = _collect_pareto_data(
+        pareto_directory,
+        threshold_ha,
+        threshold_ry,
+    )
+
+    _render_periodic_table(
+        plot_rows,
+        annotations,
+        cbar_title="Spread of added PAO (Bohr^2)",
+        output=output,
+        unmodified_elements=unmodified_elements,
+    )
+
     if output is not None:
         _dump_latex_table(table_rows, output)
+
+
+def _collect_rc_data(
+    rc_directory: Path,
+) -> tuple[list, dict[str, str]]:
+    """Scan rc-search JSON files and return plot rows and basis annotations."""
+    from pao_plusplus.cli import get_extension
+
+    plot_rows: list = []
+    annotations: dict[str, str] = {}
+    for json_file in sorted(rc_directory.glob("*.json")):
+        element = json_file.stem
+        with open(json_file) as f:
+            raw = json.load(f)
+
+        if "upf_path" in raw:
+            upf_path = Path(raw["upf_path"])
+            if upf_path.exists():
+                add_spec = tuple(raw.get("add", ()) or ())
+                extension = get_extension(add_spec) if add_spec else None
+                annotations[element] = _basis_annotation(upf_path, extension=extension)
+
+        rc_value = raw.get("rc")
+        if rc_value is None:
+            logger.info("  %s: no rc value in %s", element, json_file)
+            continue
+        plot_rows.append([element, rc_value])
+    return plot_rows, annotations
+
+
+def plot_rc_periodic_table(
+    rc_directory: Path,
+    output: Path | None = None,
+) -> None:
+    """Plot a periodic table colored by the smallest rc found by the rc search.
+
+    Reads JSON files produced by ``pao_plusplus optimize rc`` from
+    *rc_directory* (one per element, named ``<element>.json``).
+    """
+    plot_rows, annotations = _collect_rc_data(rc_directory)
+    _render_periodic_table(
+        plot_rows,
+        annotations,
+        cbar_title="minimal cutoff radius (Bohr)",
+        output=output,
+    )
