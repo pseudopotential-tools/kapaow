@@ -487,7 +487,13 @@ def benchmark(
 
     # Run DFT bands first (cached if already done). This gives us the exact
     # k-points used by QE so Wannier90 can interpolate on the same grid.
-    bands_result = run_bands_workflow(structure, working_dir, min_nbnd=cfg.num_bands, kpath=cfg.kpath)
+    bands_result = run_bands_workflow(
+        structure,
+        working_dir,
+        min_nbnd=cfg.num_bands,
+        kpath=cfg.kpath,
+        periodic=cfg.periodic,
+    )
     click.echo("DFT bands computed.")
 
     # Resolve dis_froz_max from CBM-relative value
@@ -528,6 +534,7 @@ def benchmark(
         reference_bands_pk=bands_result.reference_bands_pk,
         min_nbnd=cfg.num_bands,
         fermi_energy=bands_result.fermi_energy,
+        periodic=cfg.periodic,
     )
 
     click.echo(format_benchmark_table(results))

@@ -91,7 +91,7 @@ ElementConfig = Annotated[
 # ---- Shared fields for all workflow TOML configs ----
 
 _NON_ELEMENT_KEYS = {
-    "structure", "num_bands", "kpath",
+    "structure", "num_bands", "kpath", "periodic",
     "dis_froz_max_wrt_cbm",
     "optimize_dis_thresholds", "otsu_bins",
     "wannier90",
@@ -112,6 +112,14 @@ class _WorkflowConfigBase(BaseModel, extra="allow"):
         default=None,
         description='Manual k-path as continuous segments, e.g. [["GAMMA", "M", "K", "GAMMA"]]. '
         "Use multiple inner lists for discontinuities.",
+    )
+
+    periodic: tuple[bool, bool, bool] = Field(
+        default=(True, True, True),
+        description="Periodic boundary conditions along (a, b, c). "
+        "Set to [true, true, false] for 2D systems with vacuum along c; "
+        "QE's `assume_isolated = '2D'` is then applied automatically by "
+        "aiida-quantumespresso. Defaults to fully periodic.",
     )
 
     otsu_bins: int = Field(

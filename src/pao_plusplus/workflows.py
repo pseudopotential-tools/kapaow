@@ -29,13 +29,21 @@ class QEWorkflowResult:
     fermi_energy: float
 
 
-def structure_to_aiida(structure_file: Path) -> tuple[ase.Atoms, Any]:
+def structure_to_aiida(
+    structure_file: Path,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
+) -> tuple[ase.Atoms, Any]:
     """Read a structure file and convert to AiiDA StructureData.
 
     Requires that the AiiDA profile has already been loaded.
 
     Args:
         structure_file: Path to CIF, XSF, or any ASE-readable structure file.
+        periodic: Periodic boundary conditions along (a, b, c). The ASE Atoms'
+            ``pbc`` is set accordingly before building the StructureData so
+            that aiida-quantumespresso's PwBaseWorkChain automatically injects
+            the matching ``SYSTEM.assume_isolated`` (e.g. ``'2D'`` for
+            ``(True, True, False)``).
 
     Returns:
         Tuple of (ASE Atoms, AiiDA StructureData).
@@ -43,6 +51,7 @@ def structure_to_aiida(structure_file: Path) -> tuple[ase.Atoms, Any]:
     from aiida import orm
 
     atoms = ase.io.read(str(structure_file))
+    atoms.pbc = periodic
     structure = orm.StructureData(ase=atoms)
     return atoms, structure
 
@@ -75,6 +84,7 @@ def run_qe_workflow(
     structure_file: Path,
     working_dir: Path,
     min_nbnd: int | None = None,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
 ) -> QEWorkflowResult:
     """Run SCF + NSCF via AiiDA PwScfNscfTask.
 
@@ -97,7 +107,7 @@ def run_qe_workflow(
 
     load_koopmans_profile()
 
-    atoms, structure = structure_to_aiida(structure_file)
+    atoms, structure = structure_to_aiida(structure_file, periodic=periodic)
     pw_code = orm.load_code("pw@localhost")
 
     # Retrieve NSCF wavefunctions (needed for projectability computation)
@@ -247,6 +257,25 @@ def _build_kpoints_from_path(
             f"Available labels: {sorted(point_coords.keys())}"
         )
 
+    # For lower-dimensional structures, check that every *requested* label
+    # has zero fractional coordinate along each aperiodic axis. Seekpath's
+    # full catalog will contain points outside the periodic subspace; we
+    # only care about the ones the user actually picked.
+    pbc = tuple(structure.pbc)
+    if pbc != (True, True, True):
+        aperiodic_axes = [i for i, p in enumerate(pbc) if not p]
+        bad: list[tuple[str, list[float]]] = []
+        for label in sorted(all_labels):
+            coord = point_coords[label]
+            if any(coord[i] != 0 for i in aperiodic_axes):
+                bad.append((label, list(coord)))
+        if bad:
+            raise ValueError(
+                f"Requested k-points have non-zero components along "
+                f"aperiodic axes {aperiodic_axes} for a structure with "
+                f"pbc={pbc}: {bad}."
+            )
+
     # Build explicit k-points along each continuous segment
     all_kpoints: list[list[float]] = []
     labels: list[tuple[int, str]] = []
@@ -290,13 +319,25 @@ def _build_kpoints_from_path(
 def _seekpath_get_point_coords(structure: Any) -> dict[str, Any]:
     """Get high-symmetry point coordinates from seekpath without generating a path.
 
+    Seekpath is only implemented for fully periodic structures, so for
+    lower-dimensional systems the structure is temporarily promoted to
+    ``(True, True, True)`` for the lookup. Validation that the *requested*
+    high-symmetry points are compatible with the original periodicity is
+    performed by the caller.
+
     Args:
         structure: AiiDA StructureData node.
 
     Returns:
         Dict with 'point_coords' mapping label -> [kx, ky, kz] in fractional coords.
     """
+    from aiida import orm
     from aiida.tools import get_explicit_kpoints_path
+
+    if tuple(structure.pbc) != (True, True, True):
+        atoms = structure.get_ase()
+        atoms.pbc = (True, True, True)
+        structure = orm.StructureData(ase=atoms)
 
     result = get_explicit_kpoints_path(structure)
     params = result["parameters"].get_dict()
@@ -308,6 +349,7 @@ def run_bands_workflow(
     working_dir: Path,
     min_nbnd: int | None = None,
     kpath: list[list[str]] | None = None,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
 ) -> BandsWorkflowResult:
     """Run SCF + bands along high-symmetry k-path via PwBandsWorkChain.
 
@@ -333,7 +375,7 @@ def run_bands_workflow(
 
     load_koopmans_profile()
 
-    _, structure = structure_to_aiida(structure_file)
+    _, structure = structure_to_aiida(structure_file, periodic=periodic)
     pw_code = orm.load_code("pw@localhost")
 
     # Build explicit KpointsData if a manual k-path was provided
@@ -491,6 +533,7 @@ def run_wannierize_workflow(
     dis_froz_max: float | None = None,
     extra_w90_params: dict[str, Any] | None = None,
     min_nbnd: int | None = None,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
 ) -> Any:
     """Run the full Wannierize workflow via AiiDA.
 
@@ -531,7 +574,7 @@ def run_wannierize_workflow(
 
     load_koopmans_profile()
 
-    _, structure = structure_to_aiida(structure_file)
+    _, structure = structure_to_aiida(structure_file, periodic=periodic)
     codes = _load_codes(
         required=("pw", "pw2wannier90", "wannier90"),
         optional=("projwfc",),
@@ -618,6 +661,7 @@ def run_wannierize_optimize_workflow(
     sigma: float = 10.0,
     mu_reference: str = "cbm",
     min_nbnd: int | None = None,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
 ) -> Any:
     """Run Wannier90 optimization workflow via AiiDA.
 
@@ -661,7 +705,7 @@ def run_wannierize_optimize_workflow(
     if dis_proj_min_range is None:
         dis_proj_min_range = [0.01]  # single value = held fixed
 
-    _, structure = structure_to_aiida(structure_file)
+    _, structure = structure_to_aiida(structure_file, periodic=periodic)
     codes = _load_codes(
         required=("pw", "pw2wannier90", "wannier90"),
         optional=("projwfc",),

@@ -440,6 +440,7 @@ def run_benchmark(
     reference_bands_pk: int | None = None,
     min_nbnd: int | None = None,
     fermi_energy: float | None = None,
+    periodic: tuple[bool, bool, bool] = (True, True, True),
 ) -> list[WannierBenchmarkResult]:
     """Run wannierization for each projector combination and collect metrics.
 
@@ -495,7 +496,9 @@ def run_benchmark(
     if otsu:
         from pao_plusplus.workflows import run_qe_workflow
 
-        _otsu_qe_result = run_qe_workflow(structure_file, working_dir, min_nbnd=min_nbnd)
+        _otsu_qe_result = run_qe_workflow(
+            structure_file, working_dir, min_nbnd=min_nbnd, periodic=periodic
+        )
 
     working_dir.mkdir(parents=True, exist_ok=True)
     results: list[WannierBenchmarkResult] = []
@@ -567,6 +570,7 @@ def run_benchmark(
                 extra_w90_params=extra_w90_params,
                 strategy=optimize_strategy,
                 min_nbnd=min_nbnd,
+                periodic=periodic,
             )
             result = extract_benchmark_result(
                 process_node, first_dat, label=label, use_optimal=True,
@@ -585,6 +589,7 @@ def run_benchmark(
 
                 extra_w90_params=extra_w90_params,
                 min_nbnd=min_nbnd,
+                periodic=periodic,
             )
             result = extract_benchmark_result(
                 process_node, first_dat, label=label,

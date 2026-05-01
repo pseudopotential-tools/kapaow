@@ -576,7 +576,11 @@ def compute_amn_for_comparison_sets(
     prep = prepare_comparison_sets(config_path, working_dir, num_bands=num_bands)
 
     bands_result = run_bands_workflow(
-        prep.config.structure, working_dir, min_nbnd=prep.min_nbnd, kpath=prep.config.kpath
+        prep.config.structure,
+        working_dir,
+        min_nbnd=prep.min_nbnd,
+        kpath=prep.config.kpath,
+        periodic=prep.config.periodic,
     )
     logger.info(
         "Comparison: energies shape=%s, num_kpoints=%d, num_bands=%d",

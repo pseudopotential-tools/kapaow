@@ -233,7 +233,10 @@ def compare_matrices(
 
     # Run SCF + NSCF on the regular k-mesh
     qe_result = run_qe_workflow(
-        prep.config.structure, working_dir, min_nbnd=prep.min_nbnd
+        prep.config.structure,
+        working_dir,
+        min_nbnd=prep.min_nbnd,
+        periodic=prep.config.periodic,
     )
     kpoint_weights = qe_result.kpoint_weights
 
