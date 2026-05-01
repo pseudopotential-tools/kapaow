@@ -26,6 +26,14 @@ from kapaow.solve import (
 
 logger = logging.getLogger(__name__)
 
+__all__: list[str] = [
+    "compute_pareto_front",
+    "dump_pareto_json",
+    "extract_pareto_front",
+    "find_kink_triplets",
+    "plot_pareto",
+]
+
 
 def _evaluate_point(
     upf_path: Path,

@@ -13,6 +13,11 @@ from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
 
 logger = logging.getLogger(__name__)
 
+__all__: list[str] = [
+    "dump_rc_search_json",
+    "find_smallest_rc",
+]
+
 
 def find_smallest_rc(
     upf_path: Path,

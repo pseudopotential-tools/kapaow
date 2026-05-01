@@ -7,6 +7,12 @@ from pathlib import Path
 from kapaow.basis import AtomicBasis
 from kapaow.extend import BasisExtension
 
+__all__: list[str] = [
+    "compute_min_nbnd",
+    "compute_num_target_bands",
+    "orbitals_per_atom",
+]
+
 
 def orbitals_per_atom(upf_path: Path, extension: BasisExtension | None = None) -> int:
     """Compute the total number of orbitals per atom for a given UPF and optional extension."""

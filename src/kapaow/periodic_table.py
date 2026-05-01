@@ -21,6 +21,12 @@ from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)
 
+__all__: list[str] = [
+    "plot_pareto_periodic_table",
+    "plot_periodic_table",
+    "plot_rc_periodic_table",
+]
+
 _BOKEH_CMAP = mpl.colormaps[COLORMAP]
 
 _BOKEH_WIDTH_PX = 1050

@@ -20,6 +20,10 @@ from kapaow.solve import (
     solve_and_export,
 )
 
+__all__: list[str] = [
+    "generate_animation",
+]
+
 
 def generate_animation(
     upf_path: Path,

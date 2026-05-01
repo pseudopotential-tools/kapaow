@@ -13,6 +13,15 @@ from kapaow.basis import (
 )
 from kapaow.pydantic import BaseModel
 
+__all__: list[str] = [
+    "BasisExtension",
+    "BasisExtensionType",
+    "BasisExtensionViaAddition",
+    "BasisExtensionViaChannel",
+    "BasisExtensionViaPolarization",
+    "parse_extension",
+]
+
 
 class BasisExtensionType(enum.Enum):
     """Type of basis extension."""
