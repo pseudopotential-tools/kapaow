@@ -522,6 +522,41 @@ def get_kpoint_path(structure_file: Path) -> dict[str, Any]:
     }
 
 
+def _build_projector_rotation(
+    structure_file: Path,
+    proj_dir: Path,
+    bond_cutoff: float | None,
+) -> Any:
+    """Build the symmetry-adapted rotation matrix as an ArrayData node.
+
+    Returns an ``orm.ArrayData`` with the complex unitary ``B`` stored
+    under key ``"B"``, ready to be passed as ``projector_rotation``.
+    """
+    from aiida import orm as _orm
+
+    from pao_plusplus.fat_bands import build_atoms_dict_from_structure
+    from pao_plusplus.symmetrize import symmetry_adapted_rotation
+
+    atoms_dict, lattice_vectors = build_atoms_dict_from_structure(structure_file)
+    B, labels = symmetry_adapted_rotation(
+        structure_file=structure_file,
+        proj_dir=proj_dir,
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+        hybridize=True,
+        bond_cutoff=bond_cutoff,
+    )
+    logger.info(
+        "Symmetrized projector basis: %d orbitals (%d hybrid, %d irrep)",
+        len(labels),
+        sum(1 for lab in labels if lab.kind == "hybrid"),
+        sum(1 for lab in labels if lab.kind == "irrep"),
+    )
+    rotation = _orm.ArrayData()
+    rotation.set_array("B", B)
+    return rotation
+
+
 def run_wannierize_workflow(
     structure_file: Path,
     proj_dir: Path,
@@ -534,6 +569,8 @@ def run_wannierize_workflow(
     extra_w90_params: dict[str, Any] | None = None,
     min_nbnd: int | None = None,
     periodic: tuple[bool, bool, bool] = (True, True, True),
+    symmetrize: bool = False,
+    bond_cutoff: float | None = None,
 ) -> Any:
     """Run the full Wannierize workflow via AiiDA.
 
@@ -604,6 +641,12 @@ def run_wannierize_workflow(
 
         bands_kpoints_node = _orm.load_node(bands_kpoints_pk)
 
+    projector_rotation = _build_projector_rotation(
+        structure_file=structure_file,
+        proj_dir=proj_dir,
+        bond_cutoff=bond_cutoff,
+    ) if symmetrize else None
+
     overrides: dict[str, Any] = {
         "wannier90": {
             "wannier90": {
@@ -629,6 +672,7 @@ def run_wannierize_workflow(
         ),
         kpoint_path=kpoint_path,
         bands_kpoints=bands_kpoints_node,
+        projector_rotation=projector_rotation,
     )
     run_with_progress(wg)
 
@@ -662,6 +706,8 @@ def run_wannierize_optimize_workflow(
     mu_reference: str = "cbm",
     min_nbnd: int | None = None,
     periodic: tuple[bool, bool, bool] = (True, True, True),
+    symmetrize: bool = False,
+    bond_cutoff: float | None = None,
 ) -> Any:
     """Run Wannier90 optimization workflow via AiiDA.
 
@@ -732,6 +778,12 @@ def run_wannierize_optimize_workflow(
         },
     }
 
+    projector_rotation = _build_projector_rotation(
+        structure_file=structure_file,
+        proj_dir=proj_dir,
+        bond_cutoff=bond_cutoff,
+    ) if symmetrize else None
+
     wg = Wannier90OptimizeTaskViaBuilder.build(
         codes=codes,
         structure=structure,
@@ -756,6 +808,7 @@ def run_wannierize_optimize_workflow(
             else WannierFrozenType.PROJECTABILITY
         ),
         bands_kpoints=bands_kpoints_node,
+        projector_rotation=projector_rotation,
     )
     run_with_progress(wg)
 

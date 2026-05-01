@@ -27,6 +27,43 @@ logger = logging.getLogger(__name__)
 
 L_LABELS = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
 
+_UNICODE_SUPERSCRIPT_DIGITS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+
+
+def _pretty_orbital_label(tag: Any) -> str:
+    """Render an orbital tag with unicode sub/superscripts for plot legends.
+
+    Integer ``l`` values become ``s/p/d/f/g``. String tags from symmetrize
+    are rewritten so that ``sp2`` -> ``sp²``, ``sp3d2`` -> ``sp³d²``,
+    ``pz`` -> ``p`` + subscript ``z`` (via mathtext, since unicode has no
+    subscript z), and ``p-inplane`` -> ``p∥`` (parallel sign).
+    """
+    if isinstance(tag, int):
+        return L_LABELS.get(tag, str(tag))
+    s = str(tag)
+    if s == "pz":
+        return "p$_z$"
+    if s == "p-inplane":
+        return "p$_\\parallel$"
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch.isalpha():
+            out.append(ch)
+            i += 1
+            continue
+        if ch.isdigit():
+            j = i
+            while j < len(s) and s[j].isdigit():
+                j += 1
+            out.append(s[i:j].translate(_UNICODE_SUPERSCRIPT_DIGITS))
+            i = j
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
 # Small offset so that log10(0 + _EPS) and log10(1 - 0 + _EPS) are finite.
 _EPS = 1e-3
 
@@ -39,6 +76,28 @@ def _proj_transform(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """
     x = np.asarray(x, dtype=np.float64)
     return np.log10(x + _EPS) - np.log10(1 - x + _EPS)
+
+
+def build_atomic_wfc(
+    bessel_files: dict[str, Path],
+    atoms_dict: dict,
+    lattice_vectors: npt.NDArray[np.float64],
+) -> AtomicWFC:
+    """Construct an :class:`AtomicWFC` and load bessel radials, without projecting.
+
+    Shared helper for the full projection path (:func:`compute_amn`,
+    :func:`compute_amn_from_wfc`) and for layout-only consumers like
+    :mod:`pao_plusplus.symmetrize`. Reads only HDF5 metadata and radial
+    tables; does not loop over k-points.
+    """
+    atomic_wfc = AtomicWFC(
+        atoms_dict=atoms_dict,
+        lattice_vectors=lattice_vectors,
+    )
+    species_list = list(bessel_files.keys())
+    file_list = [str(bessel_files[s]) for s in species_list]
+    atomic_wfc.load_atomic_wfcs(file_list)
+    return atomic_wfc
 
 
 def get_channel_indices(
@@ -128,14 +187,8 @@ def compute_amn(
         lattice_vectors=lattice_vectors,
     )
 
-    atomic_wfc = AtomicWFC(
-        atoms_dict=atoms_dict,
-        lattice_vectors=lattice_vectors,
-    )
+    atomic_wfc = build_atomic_wfc(bessel_files, atoms_dict, lattice_vectors)
     species_list = list(bessel_files.keys())
-    file_list = [str(bessel_files[s]) for s in species_list]
-    atomic_wfc.load_atomic_wfcs(file_list)
-
     channel_indices = get_channel_indices(atomic_wfc, species_list)
 
     smn_list = []
@@ -179,17 +232,10 @@ def compute_amn_from_wfc(
     channel_indices
         ``{(species, l): [orbital_indices]}`` mapping.
     """
-    atomic_wfc = AtomicWFC(
-        atoms_dict=atoms_dict,
-        lattice_vectors=lattice_vectors,
-    )
+    atomic_wfc = build_atomic_wfc(bessel_files, atoms_dict, lattice_vectors)
     species_list = list(bessel_files.keys())
-    file_list = [str(bessel_files[s]) for s in species_list]
-    atomic_wfc.load_atomic_wfcs(file_list)
-
     channel_indices = get_channel_indices(atomic_wfc, species_list)
 
-    smn_list = []
     smn_list = []
     amn_list = []
     cmn_list = []
@@ -331,6 +377,8 @@ def generate_fat_bands_from_config(
     emax: float | None = None,
     filename: Path | None = None,
     num_bands: int | None = None,
+    symmetrize: bool = False,
+    bond_cutoff: float | None = None,
 ) -> list[Path]:
     """Generate fat bands plot(s) from a TOML configuration file.
 
@@ -363,7 +411,11 @@ def generate_fat_bands_from_config(
         working_dir = Path("tmp") / "fat_bands" / config_path.stem
 
     set_results, band_plot_data = compute_amn_for_comparison_sets(
-        config_path, working_dir, num_bands=num_bands
+        config_path,
+        working_dir,
+        num_bands=num_bands,
+        symmetrize=symmetrize,
+        bond_cutoff=bond_cutoff,
     )
 
     output_files: list[Path] = []
@@ -445,7 +497,10 @@ class ComparisonSetResult:
     """Shape ``(num_kpoints, num_orbitals, num_bands)``."""
     cmn: npt.NDArray[np.complex128]
     """Shape ``(num_kpoints, num_orbitals, num_bands)``."""
-    channel_indices: dict[tuple[str, int], list[int]]
+    channel_indices: dict[tuple[str, Any], list[int]]
+    """``(species, l_or_label) -> orbital indices``. In the default path
+    the second element is an integer l; when symmetrize is on it is a
+    string label like ``"sp-hybrid"`` or ``"pz"``."""
     label: str
 
 
@@ -547,6 +602,8 @@ def compute_amn_for_comparison_sets(
     config_path: Path,
     working_dir: Path,
     num_bands: int | None = None,
+    symmetrize: bool = False,
+    bond_cutoff: float | None = None,
 ) -> tuple[list[ComparisonSetResult], BandPlotData]:
     """Shared pipeline: parse config, run DFT bands, compute Amn for each PAO set.
 
@@ -606,6 +663,26 @@ def compute_amn_for_comparison_sets(
             lattice_vectors=lattice_vectors,
             num_kpoints=num_kpoints,
         )
+        if symmetrize:
+            from pao_plusplus.symmetrize import (
+                apply_rotation_to_amn,
+                group_indices_by_label,
+                symmetry_adapted_rotation,
+            )
+
+            proj_dir = next(iter(bessel_files.values())).parent
+            B, labels = symmetry_adapted_rotation(
+                structure_file=prep.config.structure,
+                proj_dir=proj_dir,
+                atoms_dict=atoms_dict,
+                lattice_vectors=lattice_vectors,
+                hybridize=True,
+                bond_cutoff=bond_cutoff,
+                with_l_padding=True,
+            )
+            amn = apply_rotation_to_amn(amn, B)
+            cmn = apply_rotation_to_amn(cmn, B)
+            channel_indices = group_indices_by_label(labels)
         results.append(ComparisonSetResult(amn, cmn, channel_indices, prep.labels[i]))
 
     return results, bands_result.band_plot_data
@@ -987,11 +1064,15 @@ def _build_fat_band_quads(
     ax: Any,
     x_fine: npt.NDArray[np.float64],
     e_fine: npt.NDArray[np.float64],
-    p_fine: npt.NDArray[np.float64],
-    rgb: tuple[float, float, float],
+    channel_p_fine: list[tuple[tuple[float, float, float], npt.NDArray[np.float64]]],
     half_w: float,
 ) -> None:
-    """Build and add trapezoid quad PolyCollection for one channel segment."""
+    """Build one PolyCollection per segment, compositing all channels into a
+    single RGBA per interval via the Porter-Duff 'over' operator.
+
+    Visually equivalent to stacking one semi-transparent quad per channel, but
+    emits C× fewer polygons.
+    """
     disp_transform = ax.transData
     inv_transform = disp_transform.inverted()
     pts_data = np.column_stack([x_fine, e_fine])
@@ -1003,9 +1084,25 @@ def _build_fat_band_quads(
 
     offsets = _compute_vertex_offsets(pts_disp, hw_disp)
 
-    verts = []
-    face_colors = []
-    for i in range(len(x_fine) - 1):
+    n_intervals = len(x_fine) - 1
+    # Porter-Duff 'over' in premultiplied form, then unpremultiply at the end
+    # so matplotlib (which expects non-premultiplied RGBA) doesn't darken
+    # low-projectability regions by blending against a black background.
+    prem_rgb = np.zeros((n_intervals, 3))
+    out_a = np.zeros(n_intervals)
+    for rgb, p_fine in channel_p_fine:
+        a = 0.5 * (p_fine[:-1] + p_fine[1:])
+        a = np.clip(a, 0.0, 1.0)
+        src = np.asarray(rgb)
+        prem_rgb = a[:, None] * src + (1.0 - a)[:, None] * prem_rgb
+        out_a = a + (1.0 - a) * out_a
+
+    safe_a = np.where(out_a > 0, out_a, 1.0)
+    out_rgb = prem_rgb / safe_a[:, None]
+    face_colors = np.concatenate([out_rgb, out_a[:, None]], axis=1)
+
+    verts = np.empty((n_intervals, 4, 2))
+    for i in range(n_intervals):
         corners_disp = np.array(
             [
                 pts_disp[i] - offsets[i],
@@ -1014,18 +1111,107 @@ def _build_fat_band_quads(
                 pts_disp[i + 1] - offsets[i + 1],
             ]
         )
-        corners_data = inv_transform.transform(corners_disp)
-        verts.append(corners_data.tolist())
-        alpha = (p_fine[i] + p_fine[i + 1]) / 2
-        face_colors.append((*rgb, float(alpha)))
+        verts[i] = inv_transform.transform(corners_disp)
 
     pc = PolyCollection(
-        verts,
+        list(verts),
         facecolors=face_colors,
         edgecolors="none",
         zorder=2,
     )
     ax.add_collection(pc)
+
+
+def _make_channel_colors(
+    channel_keys: list[tuple[str, int]],
+) -> dict[tuple[str, int], tuple[float, float, float]]:
+    from matplotlib import cm
+
+    from pao_plusplus.plotting import COLORMAP
+
+    cmap = cm.get_cmap(COLORMAP)
+    n_channels = len(channel_keys)
+    return {
+        key: mcolors.to_rgb(cmap(x))
+        for key, x in zip(channel_keys, np.linspace(0.0, 1.0, max(n_channels, 2)))
+    }
+
+
+def draw_fat_bands_on_axis(
+    ax: Any,
+    xcoords: npt.NDArray[np.float64],
+    energies: npt.NDArray[np.float64],
+    channel_projectabilities: dict[tuple[str, int], npt.NDArray[np.float64]],
+    emin: float,
+    emax: float,
+) -> dict[tuple[str, int], tuple[float, float, float]]:
+    """Draw grey band splines + composited per-channel fat-band quads on *ax*.
+
+    Caller must set ax xlim/ylim before invoking (quads are computed in
+    display space). Returns the per-channel color map for legend use.
+    """
+    ax.set_xlim(xcoords[0], xcoords[-1])
+    ax.set_ylim(emin, emax)
+
+    seg_slices = _split_kpath_segments(xcoords)
+    channel_keys = sorted(channel_projectabilities.keys())
+    channel_colors = _make_channel_colors(channel_keys)
+    half_w = (emax - emin) * 0.004
+
+    for band_idx in range(energies.shape[1]):
+        band_energies = energies[:, band_idx]
+        for seg_sl in seg_slices:
+            x_seg = xcoords[seg_sl]
+            e_seg = band_energies[seg_sl]
+            if len(x_seg) < 2:
+                continue
+            k = min(3, len(x_seg) - 1)
+            x_fine = np.linspace(x_seg[0], x_seg[-1], len(x_seg) * 3)
+            e_fine = make_interp_spline(x_seg, e_seg, k=k)(x_fine)
+            ax.plot(x_fine, e_fine, color=(0.8, 0.8, 0.8), linewidth=0.5, zorder=1)
+
+            channel_p_fine = []
+            for species, l in channel_keys:
+                proj = channel_projectabilities[(species, l)][seg_sl, band_idx]
+                p_fine = np.clip(make_interp_spline(x_seg, proj, k=k)(x_fine), 0, 1)
+                channel_p_fine.append((channel_colors[(species, l)], p_fine))
+            _build_fat_band_quads(ax, x_fine, e_fine, channel_p_fine, half_w)
+
+    return channel_colors
+
+
+def build_fat_bands_legend_handles(
+    channel_colors: dict[tuple[str, Any], tuple[float, float, float]],
+) -> list[Line2D]:
+    """Return Line2D handles for a fat-bands legend, one per channel."""
+    channel_keys = sorted(channel_colors.keys())
+    single_species = len({s for s, _ in channel_keys}) == 1
+    handles: list[Line2D] = []
+    for species, tag in channel_keys:
+        rgb = channel_colors[(species, tag)]
+        tag_label = _pretty_orbital_label(tag)
+        label = tag_label if single_species else f"{species} {tag_label}"
+        handles.append(Line2D([0], [0], color=rgb, linewidth=2, label=label))
+    return handles
+
+
+def add_fat_bands_legend(
+    ax: Any,
+    channel_colors: dict[tuple[str, Any], tuple[float, float, float]],
+) -> Any:
+    legend_handles = build_fat_bands_legend_handles(channel_colors)
+    return ax.legend(
+        handles=legend_handles,
+        loc="lower left",
+        bbox_to_anchor=(0, 1.025),
+        fontsize="small",
+        frameon=False,
+        ncol=len(legend_handles),
+        borderpad=0,
+        borderaxespad=0,
+        handletextpad=0.4,
+        columnspacing=1.0,
+    )
 
 
 def _configure_proj_panel(ax_proj: Any) -> None:
@@ -1102,77 +1288,27 @@ def plot_fat_bands(
     ax.set_xticks(label_positions)
     ax.set_xticklabels(label_strings)
 
-    seg_slices = _split_kpath_segments(xcoords)
-    channel_keys = sorted(channel_projectabilities.keys())
-    total_proj = sum(channel_projectabilities.values())
-    half_w = (emax - emin) * 0.004
-
-    # Discrete colormap for channels
     from matplotlib import cm
 
     from pao_plusplus.plotting import COLORMAP
 
-    cmap = cm.get_cmap(COLORMAP)
-    n_channels = len(channel_keys)
-    channel_colors = {
-        key: mcolors.to_rgb(cmap(x))
-        for key, x in zip(channel_keys, np.linspace(0.0, 1.0, max(n_channels, 2)))
-    }
-    proj_color = cmap(0.5)
+    channel_colors = draw_fat_bands_on_axis(
+        ax, xcoords, energies, channel_projectabilities, emin, emax
+    )
+    add_fat_bands_legend(ax, channel_colors)
 
-    num_bands = energies.shape[1]
-    for band_idx in range(num_bands):
-        band_energies = energies[:, band_idx]
-
-        for seg_sl in seg_slices:
-            x_seg = xcoords[seg_sl]
-            e_seg = band_energies[seg_sl]
-            if len(x_seg) < 2:
-                continue
-
-            k = min(3, len(x_seg) - 1)
-            x_fine = np.linspace(x_seg[0], x_seg[-1], len(x_seg) * 3)
-            e_fine = make_interp_spline(x_seg, e_seg, k=k)(x_fine)
-            ax.plot(x_fine, e_fine, color=(0.8, 0.8, 0.8), linewidth=0.5, zorder=1)
-
-            for species, l in channel_keys:
-                proj = channel_projectabilities[(species, l)][seg_sl, band_idx]
-                p_fine = np.clip(make_interp_spline(x_seg, proj, k=k)(x_fine), 0, 1)
-                rgb = channel_colors[(species, l)]
-                _build_fat_band_quads(ax, x_fine, e_fine, p_fine, rgb, half_w)
-
-        band_proj = total_proj[:, band_idx]
+    # Side-panel: total projectability scatter
+    total_proj = sum(channel_projectabilities.values())
+    proj_color = cm.get_cmap(COLORMAP)(0.5)
+    for band_idx in range(energies.shape[1]):
         ax_proj.scatter(
-            band_proj,
-            band_energies,
+            total_proj[:, band_idx],
+            energies[:, band_idx],
             s=2,
             color=proj_color,
             alpha=0.5,
             edgecolors="none",
         )
-
-    # Legend
-    legend_handles = []
-    single_species = len({s for s, _ in channel_keys}) == 1
-    for species, l in channel_keys:
-        rgb = channel_colors[(species, l)]
-        if single_species:
-            label = f"${L_LABELS.get(l, '?')}$"
-        else:
-            label = f"{species} ${L_LABELS.get(l, '?')}$"
-        legend_handles.append(Line2D([0], [0], color=rgb, linewidth=2, label=label))
-    ax.legend(
-        handles=legend_handles,
-        loc="lower left",
-        bbox_to_anchor=(0, 1.025),
-        fontsize="small",
-        frameon=False,
-        ncol=len(legend_handles),
-        borderpad=0,
-        borderaxespad=0,
-        handletextpad=0.4,
-        columnspacing=1.0,
-    )
 
     _configure_proj_panel(ax_proj)
 

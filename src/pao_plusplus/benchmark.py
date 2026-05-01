@@ -441,6 +441,8 @@ def run_benchmark(
     min_nbnd: int | None = None,
     fermi_energy: float | None = None,
     periodic: tuple[bool, bool, bool] = (True, True, True),
+    symmetrize: bool = False,
+    bond_cutoff: float | None = None,
 ) -> list[WannierBenchmarkResult]:
     """Run wannierization for each projector combination and collect metrics.
 
@@ -571,6 +573,8 @@ def run_benchmark(
                 strategy=optimize_strategy,
                 min_nbnd=min_nbnd,
                 periodic=periodic,
+                symmetrize=symmetrize,
+                bond_cutoff=bond_cutoff,
             )
             result = extract_benchmark_result(
                 process_node, first_dat, label=label, use_optimal=True,
@@ -590,6 +594,8 @@ def run_benchmark(
                 extra_w90_params=extra_w90_params,
                 min_nbnd=min_nbnd,
                 periodic=periodic,
+                symmetrize=symmetrize,
+                bond_cutoff=bond_cutoff,
             )
             result = extract_benchmark_result(
                 process_node, first_dat, label=label,
@@ -895,77 +901,21 @@ def _plot_fat_bands_on_axis(
     channel_projectabilities: dict[tuple[str, int], npt.NDArray[np.float64]],
     emin: float,
     emax: float,
-) -> None:
-    """Draw DFT bands with per-channel fat band overlays on *ax*."""
-    import matplotlib.colors as mcolors
-    from matplotlib import cm
-    from scipy.interpolate import make_interp_spline
+) -> dict[tuple[str, Any], tuple[float, float, float]]:
+    """Draw DFT bands with per-channel fat band overlays on *ax*.
 
-    from pao_plusplus.fat_bands import _build_fat_band_quads, _split_kpath_segments
-    from pao_plusplus.plotting import COLORMAP
+    Returns the ``channel_colors`` mapping so callers can build a
+    combined legend.
+    """
+    from pao_plusplus.fat_bands import draw_fat_bands_on_axis
 
-    xcoords = dft_band_plot_data.x
-    energies = dft_band_plot_data.energies
-
-    # Axis limits must be set before building quads, because
-    # _build_fat_band_quads computes widths in display space.
-    ax.set_xlim(xcoords[0], xcoords[-1])
-    ax.set_ylim(emin, emax)
-
-    seg_slices = _split_kpath_segments(xcoords)
-    channel_keys = sorted(channel_projectabilities.keys())
-    half_w = (emax - emin) * 0.004
-
-    cmap = cm.get_cmap(COLORMAP)
-    n_channels = len(channel_keys)
-    channel_colors = {
-        key: mcolors.to_rgb(cmap(x))
-        for key, x in zip(channel_keys, np.linspace(0.0, 1.0, max(n_channels, 2)))
-    }
-
-    for band_idx in range(energies.shape[1]):
-        band_energies = energies[:, band_idx]
-        for seg_sl in seg_slices:
-            x_seg = xcoords[seg_sl]
-            e_seg = band_energies[seg_sl]
-            if len(x_seg) < 2:
-                continue
-            k = min(3, len(x_seg) - 1)
-            x_fine = np.linspace(x_seg[0], x_seg[-1], len(x_seg) * 3)
-            e_fine = make_interp_spline(x_seg, e_seg, k=k)(x_fine)
-            ax.plot(x_fine, e_fine, color=(0.8, 0.8, 0.8), linewidth=0.5, zorder=1)
-
-            for species, l in channel_keys:
-                proj = channel_projectabilities[(species, l)][seg_sl, band_idx]
-                p_fine = np.clip(make_interp_spline(x_seg, proj, k=k)(x_fine), 0, 1)
-                rgb = channel_colors[(species, l)]
-                _build_fat_band_quads(ax, x_fine, e_fine, p_fine, rgb, half_w)
-
-    # Fat band channel legend
-    from matplotlib.lines import Line2D
-
-    from pao_plusplus.fat_bands import L_LABELS
-
-    legend_handles = []
-    single_species = len({s for s, _ in channel_keys}) == 1
-    for species, l in channel_keys:
-        rgb = channel_colors[(species, l)]
-        if single_species:
-            label = f"${L_LABELS.get(l, '?')}$"
-        else:
-            label = f"{species} ${L_LABELS.get(l, '?')}$"
-        legend_handles.append(Line2D([0], [0], color=rgb, linewidth=2, label=label))
-    ax.legend(
-        handles=legend_handles,
-        loc="lower left",
-        bbox_to_anchor=(0, 1.025),
-        fontsize="small",
-        frameon=False,
-        ncol=len(legend_handles),
-        borderpad=0,
-        borderaxespad=0,
-        handletextpad=0.4,
-        columnspacing=1.0,
+    return draw_fat_bands_on_axis(
+        ax,
+        dft_band_plot_data.x,
+        dft_band_plot_data.energies,
+        channel_projectabilities,
+        emin,
+        emax,
     )
 
 
@@ -1000,11 +950,16 @@ def _build_band_legend(
     band_results: list[WannierBenchmarkResult],
     colors: list[str],
     dft_band_plot_data: Any | None,
+    extra_handles: list[Any] | None = None,
 ) -> None:
-    """Build and attach a legend to *ax* for band comparison plots."""
+    """Build and attach a legend to *ax* for band comparison plots.
+
+    If *extra_handles* is provided (e.g. fat-band channel entries), they
+    are appended so that a single combined legend is drawn.
+    """
     from matplotlib.lines import Line2D
 
-    handles: list[Line2D] = []
+    handles: list[Any] = []
     if dft_band_plot_data is not None:
         handles.append(Line2D([], [], color="0.75", lw=1, label="DFT"))
     for i, (r, color) in enumerate(zip(band_results, colors, strict=False)):
@@ -1012,6 +967,8 @@ def _build_band_legend(
         handles.append(
             Line2D([], [], color=color, ls=ls, lw=1, label=r.display_name),
         )
+    if extra_handles:
+        handles.extend(extra_handles)
     ax.legend(
         handles=handles, fontsize=6, loc="lower right", bbox_to_anchor=(1, 1),
         ncol=len(handles),
@@ -1080,9 +1037,12 @@ def plot_bands_comparison(
             figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75),
             gridspec_kw={"wspace": 0.1},
         )
-        _plot_fat_bands_on_axis(ax, dft_band_plot_data, channel_projectabilities, emin, emax)
+        channel_colors = _plot_fat_bands_on_axis(
+            ax, dft_band_plot_data, channel_projectabilities, emin, emax
+        )
         _plot_projectability_panel(ax_proj, dft_band_plot_data, channel_projectabilities)
     else:
+        channel_colors = None
         fig, ax = plt.subplots(
             figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.75),
         )
@@ -1092,9 +1052,13 @@ def plot_bands_comparison(
     colors = [f"C{i}" for i in range(len(band_results))]
     _plot_wannier_bands(ax, band_results, colors)
     _configure_band_axis(ax, band_results[0], emin, emax)
-    # When fat bands are shown, the channel legend already covers DFT bands
+    extra_handles = None
+    if channel_colors is not None:
+        from pao_plusplus.fat_bands import build_fat_bands_legend_handles
+
+        extra_handles = build_fat_bands_legend_handles(channel_colors)
     _build_band_legend(
-        ax, band_results, colors, None if has_fat_bands else dft_band_plot_data
+        ax, band_results, colors, dft_band_plot_data, extra_handles=extra_handles
     )
 
     if has_fat_bands:

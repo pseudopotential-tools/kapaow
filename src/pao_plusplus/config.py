@@ -95,6 +95,7 @@ _NON_ELEMENT_KEYS = {
     "dis_froz_max_wrt_cbm",
     "optimize_dis_thresholds", "otsu_bins",
     "wannier90",
+    "symmetrize", "bond_cutoff",
 }
 
 
@@ -271,6 +272,19 @@ class BenchmarkConfig(_WorkflowConfigBase):
         default=None,
         description="Frozen window upper bound relative to the CBM (eV). "
         "When set, uses projectability + energy disentanglement.",
+    )
+
+    symmetrize: bool = Field(
+        default=False,
+        description="Rotate the projectors into a symmetry-adapted, "
+        "bond-oriented basis (e.g. sp2 + pz on planar D_3h sites) "
+        "before Wannierisation.",
+    )
+
+    bond_cutoff: float | None = Field(
+        default=None,
+        description="Distance cutoff (Angstrom) for nearest-neighbour "
+        "detection used when symmetrize=true. If None, auto-detected.",
     )
 
     elements: dict[str, list[UpfConfig | PaoConfig]] = Field(default_factory=dict)

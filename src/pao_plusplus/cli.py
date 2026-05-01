@@ -56,6 +56,19 @@ def add_option(func: Callable) -> click.Command:
     )(func)
 
 
+def symmetrize_option(func: Callable) -> click.Command:
+    """Reusable Click option toggling symmetry-adapted projector rotation."""
+    return click.option(
+        "--symmetrize",
+        is_flag=True,
+        default=False,
+        help=(
+            "Rotate projectors into a symmetry-adapted, bond-oriented basis "
+            "(sp-n hybrids + non-bonding irrep orbitals) before use."
+        ),
+    )(func)
+
+
 def get_extension(add: tuple[str, ...]) -> BasisExtension | None:
     """Convert the add flags into the corresponding extension object(s).
 
@@ -437,9 +450,11 @@ def rc(
     default=None,
     help="Working directory for benchmark outputs (default: tmp/benchmark/<config_stem>).",
 )
+@symmetrize_option
 def benchmark(
     config_path: Path,
     output: Path | None,
+    symmetrize: bool,
 ) -> None:
     r"""Benchmark rival projectors by wannierizing a structure.
 
@@ -519,6 +534,9 @@ def benchmark(
     optimize_strategy = optimize_mode.value if optimize_mode != OptimizeDisThresholds.NONE else None
 
     click.echo(f"Running {len(combinations)} benchmark combination(s)...")
+    effective_symmetrize = cfg.symmetrize or symmetrize
+    if effective_symmetrize:
+        click.echo("Symmetrizing projectors into bond-oriented hybrid basis.")
     results = run_benchmark(
         structure_file=structure,
         combinations=combinations,
@@ -535,6 +553,8 @@ def benchmark(
         min_nbnd=cfg.num_bands,
         fermi_energy=bands_result.fermi_energy,
         periodic=cfg.periodic,
+        symmetrize=effective_symmetrize,
+        bond_cutoff=cfg.bond_cutoff,
     )
 
     click.echo(format_benchmark_table(results))
@@ -563,6 +583,31 @@ def benchmark(
             lattice_vectors=lattice_vectors,
             num_kpoints=num_kpoints,
         )
+        if effective_symmetrize:
+            from pao_plusplus.benchmark import _prepare_proj_dir
+            from pao_plusplus.symmetrize import (
+                apply_rotation_to_amn,
+                group_indices_by_label,
+                symmetry_adapted_rotation,
+            )
+
+            # Stage the single combination's .dat files as ``{element}.dat``
+            # under working_dir/fat_bands_projectors, matching the layout
+            # symmetry_adapted_rotation expects.
+            dat_map = combinations[0][1]
+            proj_dir = _prepare_proj_dir(dat_map, dest_dir=working_dir / "fat_bands")
+            B, labels = symmetry_adapted_rotation(
+                structure_file=structure,
+                proj_dir=proj_dir,
+                atoms_dict=atoms_dict,
+                lattice_vectors=lattice_vectors,
+                hybridize=True,
+                bond_cutoff=cfg.bond_cutoff,
+                with_l_padding=True,
+            )
+            amn = apply_rotation_to_amn(amn, B)
+            cmn = apply_rotation_to_amn(cmn, B)
+            channel_indices = group_indices_by_label(labels)
         channel_projectabilities = compute_projectability_per_channel(amn, cmn, channel_indices)
         click.echo("Fat bands computed for single projector set.")
 
@@ -863,6 +908,7 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     default=None,
     help="Manual override for the number of bands in the DFT calculation.",
 )
+@symmetrize_option
 @with_output_option(default_format=".svg", from_config="config_file")
 def fat_bands(
     config_file: Path,
@@ -870,6 +916,7 @@ def fat_bands(
     emin: float | None,
     emax: float | None,
     num_bands: int | None,
+    symmetrize: bool,
     output: Path,
 ) -> None:
     """Plot fat bands colored by projectability.
@@ -898,6 +945,7 @@ def fat_bands(
         emax=emax,
         filename=output,
         num_bands=num_bands,
+        symmetrize=symmetrize,
     )
     for f in output_files:
         click.echo(f"Fat bands plot saved to {f}")
