@@ -13,7 +13,7 @@ from upf_tools import UPFDict
 from pao_plusplus.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
 from pao_plusplus.basis import AtomicBasis
 from pao_plusplus.data.sssp.structures import input_files
-from pao_plusplus.extend import BasisExtension
+from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
 from pao_plusplus.projectability import compute_projectability_cached, preload_material
 from pao_plusplus.solve import PseudoAtomicInput, compute_spread, solve_and_export
 from pao_plusplus.workflows import run_bands_workflow, run_qe_workflow
@@ -129,6 +129,12 @@ def optimize(
     warnings.filterwarnings("ignore", message="invalid value encountered", module="atomic_femdvr")
 
     element = _extract_element(upf_path)
+
+    original_basis = AtomicBasis.from_upf(upf_path)
+    if extension is not None and isinstance(extension, BasisExtensionViaAddition):
+        atomic_basis = extension.extend_atomic(original_basis)
+    else:
+        atomic_basis = original_basis
 
     tmp_dir = Path("tmp") / "optimize" / "projectability"
     projector_dir = tmp_dir / "projectors"
