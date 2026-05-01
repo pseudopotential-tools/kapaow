@@ -530,8 +530,8 @@ def _build_projector_rotation(
     """
     from aiida import orm as _orm
 
-    from kapaow.fat_bands import build_atoms_dict_from_structure
-    from kapaow.symmetrize import symmetry_adapted_rotation
+    from kapaow._experimental.fat_bands import build_atoms_dict_from_structure
+    from kapaow._experimental.symmetrize import symmetry_adapted_rotation
 
     atoms_dict, lattice_vectors = build_atoms_dict_from_structure(structure_file)
     rotation_matrix, labels = symmetry_adapted_rotation(

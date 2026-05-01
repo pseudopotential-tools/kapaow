@@ -520,11 +520,11 @@ def run_benchmark(
         combo_dis_proj_max = dis_proj_max
         combo_dis_proj_min = dis_proj_min
         if otsu:
+            from kapaow._experimental.fat_bands import build_atoms_dict, compute_amn_from_wfc
             from kapaow._experimental.projectability import (
                 _make_qe_input_wfc,
                 suggest_disentanglement_thresholds,
             )
-            from kapaow.fat_bands import build_atoms_dict, compute_amn_from_wfc
 
             atoms_dict, lattice_vectors = build_atoms_dict(_otsu_qe_result.nscf_input_file)
             qe_wfc = _make_qe_input_wfc(_otsu_qe_result.nscf_wfc_dir, lattice_vectors)
@@ -913,7 +913,7 @@ def _plot_fat_bands_on_axis(
     Returns the ``channel_colors`` mapping so callers can build a
     combined legend.
     """
-    from kapaow.fat_bands import draw_fat_bands_on_axis
+    from kapaow._experimental.fat_bands import draw_fat_bands_on_axis
 
     return draw_fat_bands_on_axis(
         ax,
@@ -1063,13 +1063,13 @@ def plot_bands_comparison(
     _configure_band_axis(ax, band_results[0], emin, emax)
     extra_handles = None
     if channel_colors is not None:
-        from kapaow.fat_bands import build_fat_bands_legend_handles
+        from kapaow._experimental.fat_bands import build_fat_bands_legend_handles
 
         extra_handles = build_fat_bands_legend_handles(channel_colors)
     _build_band_legend(ax, band_results, colors, dft_band_plot_data, extra_handles=extra_handles)
 
     if has_fat_bands:
-        from kapaow.fat_bands import _configure_proj_panel
+        from kapaow._experimental.fat_bands import _configure_proj_panel
 
         _configure_proj_panel(ax_proj)
         fig.subplots_adjust(left=0.15, bottom=0.15, right=0.99, top=0.925)

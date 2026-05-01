@@ -22,6 +22,6 @@ try:
     import aiida  # noqa: F401  -- presence check only
 except ImportError as exc:  # pragma: no cover - exercised only without extras
     raise ImportError(
-        "kapaow._experimental requires the 'workflows' extras. "
-        "Install with: pip install 'kapaow[workflows]'"
+        "kapaow._experimental requires the 'experimental' extras. "
+        "Install with: pip install 'kapaow[experimental]'"
     ) from exc

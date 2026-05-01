@@ -12,7 +12,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import write as ase_write
 
-from kapaow import symmetrize as sym
+from kapaow._experimental import symmetrize as sym
 
 # ---------------------------------------------------------------------------
 # Wigner-D

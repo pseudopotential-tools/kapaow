@@ -671,7 +671,7 @@ def compute_amn_for_comparison_sets(
             num_kpoints=num_kpoints,
         )
         if symmetrize:
-            from kapaow.symmetrize import (
+            from kapaow._experimental.symmetrize import (
                 apply_rotation_to_amn,
                 group_indices_by_label,
                 symmetry_adapted_rotation,

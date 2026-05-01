@@ -554,12 +554,12 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     # Compute fat bands if there is a single set of projectors
     channel_projectabilities = None
     if len(combinations) == 1:
-        from kapaow._experimental.projectability import _make_qe_input_wfc
-        from kapaow.fat_bands import (
+        from kapaow._experimental.fat_bands import (
             build_atoms_dict,
             compute_amn_from_wfc,
             compute_projectability_per_channel,
         )
+        from kapaow._experimental.projectability import _make_qe_input_wfc
 
         bessel_files = bessel_combinations[0]
         bands_calc_dir = bands_result.bands_calc_dir
@@ -576,12 +576,12 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
             num_kpoints=num_kpoints,
         )
         if effective_symmetrize:
-            from kapaow.benchmark import _prepare_proj_dir
-            from kapaow.symmetrize import (
+            from kapaow._experimental.symmetrize import (
                 apply_rotation_to_amn,
                 group_indices_by_label,
                 symmetry_adapted_rotation,
             )
+            from kapaow.benchmark import _prepare_proj_dir
 
             # Stage the single combination's .dat files as ``{element}.dat``
             # under working_dir/fat_bands_projectors, matching the layout
@@ -924,7 +924,7 @@ def fat_bands(
         [F]
         upf = "F.upf"
     """
-    from kapaow.fat_bands import generate_fat_bands_from_config
+    from kapaow._experimental.fat_bands import generate_fat_bands_from_config
 
     output_files = generate_fat_bands_from_config(
         config_path=config_file,
@@ -996,7 +996,7 @@ def compare_projectability(
         upf = "F.upf"
         rc = 15.0
     """
-    from kapaow.fat_bands import generate_projectability_comparison
+    from kapaow._experimental.fat_bands import generate_projectability_comparison
 
     generate_projectability_comparison(
         config_path=config_file,
@@ -1044,7 +1044,7 @@ def compare_gauge_matrices(
     """
     import numpy as np
 
-    from kapaow.gauge import compare_matrices, format_distance_table
+    from kapaow._experimental.gauge import compare_matrices, format_distance_table
 
     result = compare_matrices(config_file, working_dir=working_dir, num_bands=num_bands)
     click.echo(format_distance_table(result.matrix_labels, result.distance_table))
