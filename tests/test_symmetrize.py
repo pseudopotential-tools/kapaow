@@ -1,12 +1,22 @@
-"""Unit tests for :mod:`kapaow.symmetrize`.
+"""Unit tests for :mod:`kapaow._experimental.symmetrize`.
 
 These tests exercise the numerical pieces (Wigner-D, Serre decomposition,
-bond-oriented hybridization) independently of AiiDA. The end-to-end hBN
-test monkey-patches the per-species lmax reader so no .dat file is
-needed.
+bond-oriented hybridization). The end-to-end hBN test monkey-patches
+the per-species lmax reader so no .dat file is needed.
+
+The module under test lives in :mod:`kapaow._experimental`, whose
+import-time guard requires the ``[experimental]`` extras. Without
+those extras the entire test file is skipped.
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytest.importorskip(
+    "kapaow._experimental",
+    reason="kapaow._experimental requires the [experimental] extras",
+)
 
 import numpy as np
 from ase import Atoms
