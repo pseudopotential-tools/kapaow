@@ -82,6 +82,15 @@ or with pip:
 $ python3 -m pip install git+https://github.com/pseudopotential-tools/kapaow.git
 ```
 
+> ⚠️ `kapaow` also ships experimental, AiiDA-backed functionality
+> (benchmarks, fat-band plots, gauge analysis, Bayesian projectability
+> optimisation) under the `experimental` extras. This code is not
+> release-quality yet — install it explicitly if you want to try it:
+>
+> ```console
+> $ pip install 'kapaow[experimental]'
+> ```
+
 ## 👐 Contributing
 
 Contributions, whether filing an issue, making a pull request, or forking, are
