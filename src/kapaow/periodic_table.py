@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -129,42 +128,47 @@ def _save_or_show(p, output: Path | None) -> None:
         save(p, filename=str(output))
 
 
-def plot_periodic_table(
-    extract_data_from_optimizer: Callable,
+def _collect_projectability_data(
     json_directory: Path,
-    output: Path | None = None,
-) -> None:
-    """Plot a periodic table colored by optimizer scores."""
-    if output is not None:
-        if output.suffix not in {".png", ".svg", ".pdf", ".html"}:
-            raise ValueError(f"Unsupported output format: {output.suffix}")
+) -> list:
+    """Scan bayes_opt optimizer logs and return ``[element, max target]`` rows.
 
-    rows = []
+    Each ``<element>.log.json`` file is loaded by the same
+    :class:`BayesianOptimization` instance type used during optimisation,
+    and the best (max) target is extracted. Stdout / stderr from
+    ``bayes_opt`` is suppressed so a directory of logs doesn't flood the
+    terminal.
+    """
+    rows: list = []
     for json_file in tqdm(list(json_directory.glob("*.log.json"))):
         element = json_file.stem[:-4]
         optimizer = create_optimizer()
         with open(os.devnull, "w") as fnull:
             with redirect_stdout(fnull), redirect_stderr(fnull):
                 optimizer.load_state(json_file)
-        rows.append(
-            [element, extract_data_from_optimizer(optimizer)],
-        )
-    df = pd.DataFrame(rows, columns=["Element", "Score"])
+        rows.append([element, optimizer.max["target"]])
+    return rows
 
-    p = plotter(
-        df,
-        "Element",
-        "Score",
-        show=output is None,
-        extended=False,
-        periods_remove=[7],
-        width=_BOKEH_WIDTH_PX,
-        cbar_fontsize=8,
-        cmap=_BOKEH_CMAP,
-        rescale_canvas=True,
+
+def plot_periodic_table(
+    json_directory: Path,
+    output: Path | None = None,
+) -> None:
+    """Plot a periodic table colored by best projectability per element.
+
+    Reads bayes_opt optimizer logs (``<element>.log.json``) from
+    *json_directory* and renders a Bokeh periodic table whose colour
+    encodes the optimum projectability score. Annotations are not
+    populated because the optimizer logs don't carry the UPF path used
+    for the run.
+    """
+    plot_rows = _collect_projectability_data(json_directory)
+    _render_periodic_table(
+        plot_rows,
+        annotations={},
+        cbar_title="Best projectability",
+        output=output,
     )
-    _scale_fonts(p)
-    _save_or_show(p, output)
 
 
 def _collect_pareto_data(

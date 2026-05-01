@@ -23,7 +23,6 @@ from typing import Any
 
 import click
 import ipdb
-from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
 from kapaow.extend import (
@@ -860,11 +859,7 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
     or rc-search JSONs for --color-by rc.
     """
     if color_by == "projectability":
-
-        def extract_data(optimizer: BayesianOptimization) -> float:
-            return optimizer.max["target"]
-
-        plot_periodic_table(extract_data, directory, output=output)
+        plot_periodic_table(directory, output=output)
     elif color_by == "spread":
         from kapaow.periodic_table import plot_pareto_periodic_table
 
