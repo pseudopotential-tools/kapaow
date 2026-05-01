@@ -6,8 +6,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from pao_plusplus.cli import get_extension, main
-from pao_plusplus.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
+from kapaow.cli import get_extension, main
+from kapaow.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
 
 # ---------------------------------------------------------------------------
 # get_extension

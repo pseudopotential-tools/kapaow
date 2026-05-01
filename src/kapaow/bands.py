@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.extend import BasisExtension
+from kapaow.basis import AtomicBasis
+from kapaow.extend import BasisExtension
 
 
 def orbitals_per_atom(upf_path: Path, extension: BasisExtension | None = None) -> int:

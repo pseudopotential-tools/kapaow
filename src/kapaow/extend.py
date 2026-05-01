@@ -5,13 +5,13 @@ from abc import ABC, abstractmethod
 
 from pydantic import Field
 
-from pao_plusplus.basis import (
+from kapaow.basis import (
     AngularMomentum,
     AtomicBasis,
     PseudoatomicBasis,
     ordered_subshells,
 )
-from pao_plusplus.pydantic import BaseModel
+from kapaow.pydantic import BaseModel
 
 
 class BasisExtensionType(enum.Enum):

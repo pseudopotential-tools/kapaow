@@ -1,4 +1,4 @@
-"""Workflow module for pao_plusplus using AiiDA workgraphs."""
+"""Workflow module for kapaow using AiiDA workgraphs."""
 
 from __future__ import annotations
 
@@ -476,7 +476,7 @@ def _build_external_projectors(proj_dir: Path) -> dict[str, list[dict[str, Any]]
     Returns:
         Dict mapping element symbols to lists of orbital descriptors.
     """
-    from pao_plusplus.io import read_wannier90_dat_file
+    from kapaow.io import read_wannier90_dat_file
 
     l_to_letter = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
     projectors: dict[str, list[dict[str, Any]]] = {}
@@ -534,8 +534,8 @@ def _build_projector_rotation(
     """
     from aiida import orm as _orm
 
-    from pao_plusplus.fat_bands import build_atoms_dict_from_structure
-    from pao_plusplus.symmetrize import symmetry_adapted_rotation
+    from kapaow.fat_bands import build_atoms_dict_from_structure
+    from kapaow.symmetrize import symmetry_adapted_rotation
 
     atoms_dict, lattice_vectors = build_atoms_dict_from_structure(structure_file)
     B, labels = symmetry_adapted_rotation(

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pao_plusplus.io import read_wannier90_dat_file, write_wannier90_dat_file
+from kapaow.io import read_wannier90_dat_file, write_wannier90_dat_file
 
 
 @pytest.mark.parametrize("filename", ["Mo.dat", "Mo_TZ_rc10.0.dat"])

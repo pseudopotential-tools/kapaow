@@ -21,7 +21,7 @@ from qe_wavefunctions.qe_input_wfcs import QEInputWFC
 from qe_wavefunctions.qe_projections import compute_atomic_projections
 from scipy.interpolate import make_interp_spline
 
-from pao_plusplus.workflows import BandPlotData
+from kapaow.workflows import BandPlotData
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def build_atomic_wfc(
 
     Shared helper for the full projection path (:func:`compute_amn`,
     :func:`compute_amn_from_wfc`) and for layout-only consumers like
-    :mod:`pao_plusplus.symmetrize`. Reads only HDF5 metadata and radial
+    :mod:`kapaow.symmetrize`. Reads only HDF5 metadata and radial
     tables; does not loop over k-points.
     """
     atomic_wfc = AtomicWFC(
@@ -333,7 +333,7 @@ def build_atoms_dict_from_structure(
     lattice_vectors
         3x3 array of lattice vectors in Bohr.
     """
-    from pao_plusplus.workflows import structure_to_aiida
+    from kapaow.workflows import structure_to_aiida
 
     _, structure = structure_to_aiida(structure_file)
     atoms = structure.get_ase()
@@ -355,8 +355,8 @@ def _count_pao_orbitals(element: str, pao_config: Any) -> int:
 
     Each selected orbital contributes (2l+1) orbitals (the m quantum numbers).
     """
-    from pao_plusplus.data.openmx import fetch_pao
-    from pao_plusplus.openmx import parse_select, read_openmx_pao
+    from kapaow.data.openmx import fetch_pao
+    from kapaow.openmx import parse_select, read_openmx_pao
 
     pao = read_openmx_pao(fetch_pao(element, pao_config.rc))
     if pao_config.select:
@@ -451,8 +451,8 @@ def _generate_bessel_files(
 
     Shared helper for fat-bands and projectability comparison.
     """
-    from pao_plusplus.config import PaoConfig, UpfConfig
-    from pao_plusplus.solve import solve_and_export
+    from kapaow.config import PaoConfig, UpfConfig
+    from kapaow.solve import solve_and_export
 
     bessel_files: dict[str, Path] = {}
     for element, elem_config in elements.items():
@@ -476,8 +476,8 @@ def _generate_bessel_files(
                 )
             bessel_files[element] = bessel
         elif isinstance(elem_config, PaoConfig):
-            from pao_plusplus.data.openmx import fetch_pao
-            from pao_plusplus.openmx import pao_to_bessel, parse_select, read_openmx_pao
+            from kapaow.data.openmx import fetch_pao
+            from kapaow.openmx import pao_to_bessel, parse_select, read_openmx_pao
 
             pao_path = fetch_pao(element, elem_config.rc)
             logger.info("Converting %s to Bessel for %s", pao_path.name, element)
@@ -539,8 +539,8 @@ def prepare_comparison_sets(
     num_bands
         Manual override for the number of bands.
     """
-    from pao_plusplus.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
-    from pao_plusplus.config import (
+    from kapaow.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
+    from kapaow.config import (
         PaoConfig,
         ProjectabilityComparisonConfig,
         UpfConfig,
@@ -627,8 +627,8 @@ def compute_amn_for_comparison_sets(
     band_plot_data
         Band structure data shared across all sets.
     """
-    from pao_plusplus.projectability import _make_qe_input_wfc
-    from pao_plusplus.workflows import run_bands_workflow
+    from kapaow.projectability import _make_qe_input_wfc
+    from kapaow.workflows import run_bands_workflow
 
     prep = prepare_comparison_sets(config_path, working_dir, num_bands=num_bands)
 
@@ -664,7 +664,7 @@ def compute_amn_for_comparison_sets(
             num_kpoints=num_kpoints,
         )
         if symmetrize:
-            from pao_plusplus.symmetrize import (
+            from kapaow.symmetrize import (
                 apply_rotation_to_amn,
                 group_indices_by_label,
                 symmetry_adapted_rotation,
@@ -719,8 +719,8 @@ def generate_projectability_comparison(
         Manual override for the number of bands. Takes precedence over both
         the TOML ``num_bands`` field and the automatic calculation.
     """
-    from pao_plusplus.config import ProjectabilityComparisonConfig
-    from pao_plusplus.projectability import suggest_disentanglement_thresholds
+    from kapaow.config import ProjectabilityComparisonConfig
+    from kapaow.projectability import suggest_disentanglement_thresholds
 
     config = ProjectabilityComparisonConfig.from_toml(config_path)
 
@@ -787,7 +787,7 @@ def plot_projectability_comparison(
     filename
         If provided, save the figure to this path.
     """
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     energies = band_plot_data.energies
     padding = 0.025 * (energies.max() - energies.min())
@@ -798,7 +798,7 @@ def plot_projectability_comparison(
 
     from matplotlib import cm
 
-    from pao_plusplus.plotting import COLORMAP
+    from kapaow.plotting import COLORMAP
 
     fig, (ax, ax_hist) = plt.subplots(
         1,
@@ -941,7 +941,7 @@ def plot_projectability_comparison(
 
     fig.subplots_adjust(left=0.15, bottom=0.18, right=0.99, top=0.9)
     if filename is not None:
-        from pao_plusplus.plotting import savefig
+        from kapaow.plotting import savefig
         savefig(fig, filename)
     plt.close(fig)
 
@@ -972,7 +972,7 @@ def generate_fat_bands_plot(
     filename
         If provided, save the figure to this path.
     """
-    from pao_plusplus.projectability import _make_qe_input_wfc
+    from kapaow.projectability import _make_qe_input_wfc
 
     pwi_file = bands_calc_dir / "inputs" / "aiida.in"
     wfc_dir = bands_calc_dir / "outputs"
@@ -1127,7 +1127,7 @@ def _make_channel_colors(
 ) -> dict[tuple[str, int], tuple[float, float, float]]:
     from matplotlib import cm
 
-    from pao_plusplus.plotting import COLORMAP
+    from kapaow.plotting import COLORMAP
 
     cmap = cm.get_cmap(COLORMAP)
     n_channels = len(channel_keys)
@@ -1263,7 +1263,7 @@ def plot_fat_bands(
         emax = float(energies.max()) + padding
 
     # Create figure with two subplots sharing y-axis
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     fig, (ax, ax_proj) = plt.subplots(
         1,
@@ -1290,7 +1290,7 @@ def plot_fat_bands(
 
     from matplotlib import cm
 
-    from pao_plusplus.plotting import COLORMAP
+    from kapaow.plotting import COLORMAP
 
     channel_colors = draw_fat_bands_on_axis(
         ax, xcoords, energies, channel_projectabilities, emin, emax
@@ -1314,6 +1314,6 @@ def plot_fat_bands(
 
     fig.subplots_adjust(left=0.15, bottom=0.15, right=0.99, top=0.925)
     if filename is not None:
-        from pao_plusplus.plotting import savefig
+        from kapaow.plotting import savefig
         savefig(fig, filename)
     plt.close(fig)

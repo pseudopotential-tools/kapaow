@@ -1,9 +1,9 @@
 Command Line Interface
 ======================
 
-pao_plusplus automatically installs the command ``pao_plusplus``. See ``pao_plusplus
+kapaow automatically installs the command ``kapaow``. See ``kapaow
 --help`` for usage details.
 
-.. click:: pao_plusplus.cli:main
-    :prog: pao_plusplus
+.. click:: kapaow.cli:main
+    :prog: kapaow
     :show-nested:

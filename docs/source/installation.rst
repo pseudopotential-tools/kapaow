@@ -2,17 +2,17 @@ Installation
 ============
 
 The most recent release can be installed from `PyPI
-<https://pypi.org/project/pao_plusplus>`_ with uv:
+<https://pypi.org/project/kapaow>`_ with uv:
 
 .. code-block:: console
 
-    $ uv pip install pao_plusplus
+    $ uv pip install kapaow
 
 or with pip:
 
 .. code-block:: console
 
-    $ python3 -m pip install pao_plusplus
+    $ python3 -m pip install kapaow
 
 Installing from git
 -------------------

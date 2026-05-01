@@ -1,13 +1,13 @@
-"""Command line interface for :mod:`pao_plusplus`.
+"""Command line interface for :mod:`kapaow`.
 
 Why does this file exist, and why not put this in ``__main__``? You might be tempted to
 import things from ``__main__`` later, but that will cause problems--the code will get
 executed twice:
 
-- When you run ``python3 -m pao_plusplus`` python will execute``__main__.py`` as a
-  script. That means there won't be any ``pao_plusplus.__main__`` in ``sys.modules``.
+- When you run ``python3 -m kapaow`` python will execute``__main__.py`` as a
+  script. That means there won't be any ``kapaow.__main__`` in ``sys.modules``.
 - When you import __main__ it will get executed again (as a module) because there's no
-  ``pao_plusplus.__main__`` in ``sys.modules``.
+  ``kapaow.__main__`` in ``sys.modules``.
 
 .. seealso::
 
@@ -26,18 +26,18 @@ import ipdb
 from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
-from pao_plusplus.extend import (
+from kapaow.extend import (
     BasisExtension,
     BasisExtensionType,
     BasisExtensionViaAddition,
     BasisExtensionViaChannel,
     BasisExtensionViaPolarization,
 )
-from pao_plusplus.optimize import optimize as internal_optimize
-from pao_plusplus.optimize import plot_optimizer
-from pao_plusplus.periodic_table import plot_periodic_table
-from pao_plusplus.plotting import plot_wannier90_dat_files
-from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
+from kapaow.optimize import optimize as internal_optimize
+from kapaow.optimize import plot_optimizer
+from kapaow.periodic_table import plot_periodic_table
+from kapaow.plotting import plot_wannier90_dat_files
+from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
 
 __all__ = [
     "main",
@@ -99,7 +99,7 @@ def _describe_extension(upf: Path, extension: BasisExtension) -> str:
     produce e.g. ``"_with_2p_and_3s"``.  For polarization, returns
     ``"_polarized"`` (or ``"_polarized_x2"`` etc.).
     """
-    from pao_plusplus.basis import AtomicBasis, Subshell
+    from kapaow.basis import AtomicBasis, Subshell
 
     l_letters = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
 
@@ -135,21 +135,21 @@ def enable_postmortem_debugger() -> None:
 @click.group()
 @click.version_option()
 @click.option("--debug", is_flag=True, help="Enable debug mode.")
-@click.option("-l", "--log", is_flag=True, help="Enable logging to pao_plusplus.log.")
+@click.option("-l", "--log", is_flag=True, help="Enable logging to kapaow.log.")
 @click.pass_context
 def main(ctx: click.Context, debug: bool, log: bool) -> None:
-    """CLI for pao_plusplus."""
+    """CLI for kapaow."""
     if debug:
         enable_postmortem_debugger()
     if log:
         import logging
 
-        file_handler = logging.FileHandler("pao_plusplus.log", mode="w")
+        file_handler = logging.FileHandler("kapaow.log", mode="w")
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
         )
-        pkg_logger = logging.getLogger("pao_plusplus")
+        pkg_logger = logging.getLogger("kapaow")
         pkg_logger.setLevel(logging.INFO)
         pkg_logger.addHandler(file_handler)
     ctx.ensure_object(dict)
@@ -188,13 +188,13 @@ def convert(input_file: Path, select_str: str | None, output: Path | None) -> No
 
     \b
     Examples:
-        pao_plusplus convert Li.upf
-        pao_plusplus convert Li.upf -o Li.dat
-        pao_plusplus convert Li8.0.pao --select sspd
+        kapaow convert Li.upf
+        kapaow convert Li.upf -o Li.dat
+        kapaow convert Li8.0.pao --select sspd
     """
     if input_file.suffix == ".pao":
-        from pao_plusplus.io import format_wannier90_dat
-        from pao_plusplus.openmx import convert_to_wannier90, parse_select, read_openmx_pao
+        from kapaow.io import format_wannier90_dat
+        from kapaow.openmx import convert_to_wannier90, parse_select, read_openmx_pao
 
         pao = read_openmx_pao(input_file)
         selected = parse_select(list(select_str)) if select_str else None
@@ -241,8 +241,8 @@ def confine(
 
     \b
     Examples:
-        pao_plusplus confine Li.upf --add subshell --rc 8 --ri-factor 0.9
-        pao_plusplus confine Li.upf --add subshell --add subshell
+        kapaow confine Li.upf --add subshell --rc 8 --ri-factor 0.9
+        kapaow confine Li.upf --add subshell --add subshell
     """
     import tempfile
 
@@ -336,7 +336,7 @@ def spread(
     add: tuple[str, ...],
 ) -> None:
     """Optimize PAO spread by scanning rc and ri_factor, producing a Pareto front."""
-    from pao_plusplus.pareto import compute_pareto_front, dump_pareto_json, plot_pareto
+    from kapaow.pareto import compute_pareto_front, dump_pareto_json, plot_pareto
 
     extension = get_extension(add)
     rc_values = list(rc) if rc else None
@@ -411,8 +411,8 @@ def rc(
     add: tuple[str, ...],
 ) -> None:
     """Bisect over rc to find the smallest value satisfying an energy-shift threshold."""
-    from pao_plusplus.rc_search import dump_rc_search_json, find_smallest_rc
-    from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
+    from kapaow.rc_search import dump_rc_search_json, find_smallest_rc
+    from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
 
     extension = get_extension(add)
     rc_value, points = find_smallest_rc(
@@ -476,17 +476,17 @@ def benchmark(
 
     \b
     Example:
-        pao_plusplus benchmark benchmark.toml
+        kapaow benchmark benchmark.toml
     """
-    from pao_plusplus.benchmark import (
+    from kapaow.benchmark import (
         format_benchmark_table,
         generate_dat_files,
         plot_bands_comparison,
         plot_convergence,
         run_benchmark,
     )
-    from pao_plusplus.config import BenchmarkConfig, OptimizeDisThresholds
-    from pao_plusplus.workflows import run_bands_workflow
+    from kapaow.config import BenchmarkConfig, OptimizeDisThresholds
+    from kapaow.workflows import run_bands_workflow
 
     cfg = BenchmarkConfig.from_toml(config_path)
     structure = cfg.structure
@@ -553,12 +553,12 @@ def benchmark(
     # Compute fat bands if there is a single set of projectors
     channel_projectabilities = None
     if len(combinations) == 1:
-        from pao_plusplus.fat_bands import (
+        from kapaow.fat_bands import (
             build_atoms_dict,
             compute_amn_from_wfc,
             compute_projectability_per_channel,
         )
-        from pao_plusplus.projectability import _make_qe_input_wfc
+        from kapaow.projectability import _make_qe_input_wfc
 
         bessel_files = bessel_combinations[0]
         bands_calc_dir = bands_result.bands_calc_dir
@@ -575,8 +575,8 @@ def benchmark(
             num_kpoints=num_kpoints,
         )
         if effective_symmetrize:
-            from pao_plusplus.benchmark import _prepare_proj_dir
-            from pao_plusplus.symmetrize import (
+            from kapaow.benchmark import _prepare_proj_dir
+            from kapaow.symmetrize import (
                 apply_rotation_to_amn,
                 group_indices_by_label,
                 symmetry_adapted_rotation,
@@ -628,7 +628,7 @@ def benchmark(
 
     # If optimization was used, plot the trajectory
     if isinstance(dis_proj_max_value, str) and dis_proj_max_value == "optimize":
-        from pao_plusplus.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+        from kapaow.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
 
         # Re-load the process node from the most recent optimize run
         # (stored as the last workgraph in working_dir/run_000/wannierize_optimize)
@@ -726,13 +726,13 @@ def animate(
     ELEMENT_OR_UPF is either an element symbol (e.g. Li) to use the bundled
     PseudoDojo pseudopotential, or a path to a UPF file.
     """
-    from pao_plusplus.animate import generate_animation
+    from kapaow.animate import generate_animation
 
     upf_candidate = Path(element_or_upf)
     if upf_candidate.is_file():
         upf_path = upf_candidate
     else:
-        from pao_plusplus.data.pseudodojo import fetch_pseudopotential
+        from kapaow.data.pseudodojo import fetch_pseudopotential
 
         upf_path = fetch_pseudopotential(element_or_upf)
 
@@ -829,7 +829,7 @@ def projectability_optimization(log_file: Path, output: Path | None) -> None:
 @click.option("--logy", is_flag=True, default=False, help="Use log scale for the y-axis only.")
 def spread_optimization(json_file: Path, output: Path, loglog: bool, logy: bool) -> None:
     """Plot a spread optimization Pareto front from an existing JSON file."""
-    from pao_plusplus.pareto import plot_pareto
+    from kapaow.pareto import plot_pareto
 
     plot_pareto(json_file, filename=output, loglog=loglog, logy=logy)
     click.echo(f"Pareto plot saved to {output}")
@@ -864,11 +864,11 @@ def periodic_table_cmd(directory: Path, color_by: str, threshold: float, output:
 
         plot_periodic_table(extract_data, directory, output=output)
     elif color_by == "spread":
-        from pao_plusplus.periodic_table import plot_pareto_periodic_table
+        from kapaow.periodic_table import plot_pareto_periodic_table
 
         plot_pareto_periodic_table(directory, output=output, threshold_ry=threshold)
     elif color_by == "rc":
-        from pao_plusplus.periodic_table import plot_rc_periodic_table
+        from kapaow.periodic_table import plot_rc_periodic_table
 
         plot_rc_periodic_table(directory, output=output)
 
@@ -927,7 +927,7 @@ def fat_bands(
         [F]
         upf = "F.upf"
     """
-    from pao_plusplus.fat_bands import generate_fat_bands_from_config
+    from kapaow.fat_bands import generate_fat_bands_from_config
 
     output_files = generate_fat_bands_from_config(
         config_path=config_file,
@@ -999,7 +999,7 @@ def compare_projectability(
         upf = "F.upf"
         rc = 15.0
     """
-    from pao_plusplus.fat_bands import generate_projectability_comparison
+    from kapaow.fat_bands import generate_projectability_comparison
 
     generate_projectability_comparison(
         config_path=config_file,
@@ -1043,11 +1043,11 @@ def compare_gauge_matrices(
 
     \b
     Example:
-        pao_plusplus plot compare-gauge-matrices LiF_projectability_comparison.toml
+        kapaow plot compare-gauge-matrices LiF_projectability_comparison.toml
     """
     import numpy as np
 
-    from pao_plusplus.gauge import compare_matrices, format_distance_table
+    from kapaow.gauge import compare_matrices, format_distance_table
 
     result = compare_matrices(config_file, working_dir=working_dir, num_bands=num_bands)
     click.echo(format_distance_table(result.matrix_labels, result.distance_table))
@@ -1070,7 +1070,7 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
 
     GRID_DIRECTORY is a directory containing per-element grid JSON files.
     """
-    from pao_plusplus.analysis import plot_cumulative_below_threshold
+    from kapaow.analysis import plot_cumulative_below_threshold
 
     plot_cumulative_below_threshold(
         grid_directory,
@@ -1091,7 +1091,7 @@ def optimize_trajectory(pk: int, output: Path) -> None:
     """
     import logging
 
-    from pao_plusplus.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+    from kapaow.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
 
     logging.basicConfig(level=logging.INFO)
 

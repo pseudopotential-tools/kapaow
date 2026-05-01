@@ -9,7 +9,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
-from pao_plusplus.io import read_wannier90_dat_file
+from kapaow.io import read_wannier90_dat_file
 
 # RevTeX column widths in inches (1 pt = 1/72 inch)
 REVTEX_COLUMN_WIDTH = 246 / 72  # single column

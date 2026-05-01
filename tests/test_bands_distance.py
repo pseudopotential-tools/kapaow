@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pao_plusplus.bands_distance import BandDistanceResult, bands_distance
+from kapaow.bands_distance import BandDistanceResult, bands_distance
 
 
 def test_identical_bands() -> None:

@@ -1,6 +1,6 @@
-"""Version information for :mod:`pao_plusplus`.
+"""Version information for :mod:`kapaow`.
 
-Run with ``python -m pao_plusplus.version``
+Run with ``python -m kapaow.version``
 """
 
 import os
@@ -16,7 +16,7 @@ VERSION = "0.0.1-dev"
 
 
 def get_git_hash() -> str:
-    """Get the :mod:`pao_plusplus` git hash."""
+    """Get the :mod:`kapaow` git hash."""
     with open(os.devnull, "w") as devnull:
         try:
             ret = check_output(
@@ -30,7 +30,7 @@ def get_git_hash() -> str:
 
 
 def get_version(with_git_hash: bool = False) -> str:
-    """Get the :mod:`pao_plusplus` version string, including a git hash."""
+    """Get the :mod:`kapaow` version string, including a git hash."""
     return f"{VERSION}-{get_git_hash()}" if with_git_hash else VERSION
 
 

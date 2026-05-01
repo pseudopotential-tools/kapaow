@@ -2,7 +2,7 @@
 
 import unittest
 
-from pao_plusplus.version import get_version
+from kapaow.version import get_version
 
 
 class TestVersion(unittest.TestCase):

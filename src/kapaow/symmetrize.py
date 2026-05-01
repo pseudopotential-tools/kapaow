@@ -13,7 +13,7 @@ Projector basis conventions
     * **Internal** (Wigner-D, hybrid construction, irrep adaptation):
       complex spherical harmonics ``Y_l^m`` with Condon-Shortley phase
       and m ordering ``-l, -l+1, ..., +l``. This matches the local
-      projector path in :mod:`pao_plusplus.fat_bands` (``AtomicWFC`` /
+      projector path in :mod:`kapaow.fat_bands` (``AtomicWFC`` /
       ``compute_amn_from_wfc``), used by the rectangular *padded* layout.
     * **Flat / .dat output** (consumed by ``pw2wannier90``'s ``.amn``):
       W90's real spherical harmonic ordering -- l=1: (pz, px, py); l=2:
@@ -193,7 +193,7 @@ def symmetry_adapted_rotation(
           B has shape ``(N_rect, N_rect)`` with identity rows/columns on
           padded slots and the real rotation scattered onto the real
           slots. This matches the amn produced by
-          :func:`pao_plusplus.fat_bands.compute_amn_from_wfc`.
+          :func:`kapaow.fat_bands.compute_amn_from_wfc`.
 
     Returns
     -------
@@ -328,7 +328,7 @@ def _read_species_l_lists(
     The list order matches the ``.dat`` file, i.e. the order in which
     pw2wannier90 emits radial channels for that species.
     """
-    from pao_plusplus.io import read_wannier90_dat_file
+    from kapaow.io import read_wannier90_dat_file
 
     species_l_lists: dict[str, list[int]] = {}
     for species in atoms_dict:

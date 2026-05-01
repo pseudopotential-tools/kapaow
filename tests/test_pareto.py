@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pao_plusplus.pareto import (
+from kapaow.pareto import (
     dump_pareto_json,
     extract_pareto_front,
     find_kink_triplets,

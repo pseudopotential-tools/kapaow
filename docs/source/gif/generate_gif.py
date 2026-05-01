@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 
-from pao_plusplus.data.pseudodojo import fetch_pseudopotential
-from pao_plusplus.extend import BasisExtensionViaAddition
-from pao_plusplus.plotting import plot_wannier90_dat_file
-from pao_plusplus.solve import solve_pseudoatomic_problem
+from kapaow.data.pseudodojo import fetch_pseudopotential
+from kapaow.extend import BasisExtensionViaAddition
+from kapaow.plotting import plot_wannier90_dat_file
+from kapaow.solve import solve_pseudoatomic_problem
 
 BARRIER_HEIGHT = 10.0
 ELEMENT = "Li"

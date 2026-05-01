@@ -2,8 +2,8 @@
 
 import pytest
 
-from pao_plusplus.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis
-from pao_plusplus.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
+from kapaow.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis
+from kapaow.extend import BasisExtensionViaAddition, BasisExtensionViaPolarization
 
 
 @pytest.mark.parametrize("increment", [1, 2, 3])

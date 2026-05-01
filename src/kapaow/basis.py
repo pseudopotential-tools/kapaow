@@ -9,7 +9,7 @@ from typing import Any, Self
 
 from pydantic import field_validator, model_validator
 
-from pao_plusplus.pydantic import BaseModel
+from kapaow.pydantic import BaseModel
 
 
 class AngularMomentum(IntEnum):

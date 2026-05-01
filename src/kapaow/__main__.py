@@ -1,4 +1,4 @@
-"""Entrypoint module, in case you use `python -m pao_plusplus`.
+"""Entrypoint module, in case you use `python -m kapaow`.
 
 Why does this file exist, and why ``__main__``? For more info, read:
 

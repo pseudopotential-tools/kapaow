@@ -1,5 +1,5 @@
 Usage
 =====
 
-.. automodule:: pao_plusplus.optimize
+.. automodule:: kapaow.optimize
     :members:

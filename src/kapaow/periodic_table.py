@@ -16,10 +16,10 @@ from periodic_trends import plotter
 from tqdm import tqdm
 from upf_tools import UPFDict
 
-from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
-from pao_plusplus.optimize import create_optimizer
-from pao_plusplus.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
+from kapaow.basis import AtomicBasis
+from kapaow.extend import BasisExtension, BasisExtensionViaAddition
+from kapaow.optimize import create_optimizer
+from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +378,7 @@ def _collect_rc_data(
     rc_directory: Path,
 ) -> tuple[list, dict[str, str]]:
     """Scan rc-search JSON files and return plot rows and basis annotations."""
-    from pao_plusplus.cli import get_extension
+    from kapaow.cli import get_extension
 
     plot_rows: list = []
     annotations: dict[str, str] = {}
@@ -408,7 +408,7 @@ def plot_rc_periodic_table(
 ) -> None:
     """Plot a periodic table colored by the smallest rc found by the rc search.
 
-    Reads JSON files produced by ``pao_plusplus optimize rc`` from
+    Reads JSON files produced by ``kapaow optimize rc`` from
     *rc_directory* (one per element, named ``<element>.json``).
     """
     plot_rows, annotations = _collect_rc_data(rc_directory)

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pao_plusplus.openmx import (
+from kapaow.openmx import (
     OpenMXPAO,
     _extract_param,
     _extract_tag,
@@ -132,7 +132,7 @@ def test_read_openmx_pao_real_file() -> None:
     real_pao = (
         Path(__file__).parent.parent
         / "src"
-        / "pao_plusplus"
+        / "kapaow"
         / "data"
         / "openmx"
         / "PAO"

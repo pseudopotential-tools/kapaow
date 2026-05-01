@@ -20,15 +20,15 @@ class OptimizeDisThresholds(enum.Enum):
     OTSU = "otsu"
 
 
-from pao_plusplus.extend import (
+from kapaow.extend import (
     BasisExtension,
     BasisExtensionType,
     BasisExtensionViaAddition,
     BasisExtensionViaChannel,
     BasisExtensionViaPolarization,
 )
-from pao_plusplus.pydantic import BaseModel
-from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX
+from kapaow.pydantic import BaseModel
+from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX
 
 
 class UpfConfig(BaseModel):

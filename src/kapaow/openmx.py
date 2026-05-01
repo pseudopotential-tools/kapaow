@@ -119,7 +119,7 @@ def convert_to_wannier90(
     Returns
     -------
     x, r, l_values, orbitals
-        Tuple matching :func:`~pao_plusplus.io.write_wannier90_dat_file`.
+        Tuple matching :func:`~kapaow.io.write_wannier90_dat_file`.
     """
     if selected is None:
         # Default: one orbital per l channel

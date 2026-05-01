@@ -11,14 +11,14 @@
 <p align="center">
     <a href="https://github.com/pseudopotential-tools/pao-plusplus/actions/workflows/tests.yml">
         <img alt="Tests" src="https://github.com/pseudopotential-tools/pao-plusplus/actions/workflows/tests.yml/badge.svg" /></a>
-    <a href="https://pypi.org/project/pao_plusplus">
-        <img alt="PyPI" src="https://img.shields.io/pypi/v/pao_plusplus" /></a>
-    <a href="https://pypi.org/project/pao_plusplus">
-        <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/pao_plusplus" /></a>
+    <a href="https://pypi.org/project/kapaow">
+        <img alt="PyPI" src="https://img.shields.io/pypi/v/kapaow" /></a>
+    <a href="https://pypi.org/project/kapaow">
+        <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/kapaow" /></a>
     <a href="https://github.com/pseudopotential-tools/pao-plusplus/blob/main/LICENSE">
-        <img alt="PyPI - License" src="https://img.shields.io/pypi/l/pao_plusplus" /></a>
-    <a href='https://pao_plusplus.readthedocs.io/en/latest/?badge=latest'>
-        <img src='https://readthedocs.org/projects/pao_plusplus/badge/?version=latest' alt='Documentation Status' /></a>
+        <img alt="PyPI - License" src="https://img.shields.io/pypi/l/kapaow" /></a>
+    <a href='https://kapaow.readthedocs.io/en/latest/?badge=latest'>
+        <img src='https://readthedocs.org/projects/kapaow/badge/?version=latest' alt='Documentation Status' /></a>
     <a href="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main">
         <img src="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main/graph/badge.svg" alt="Codecov status" /></a>  
     <a href="https://github.com/cthoyt/cookiecutter-python-package">
@@ -43,11 +43,11 @@ Find optimal pseudoatomic orbitals for representing bands in bulk systems.
 
 ### Command Line Interface
 
-The `pao_plusplus` command line tool is automatically installed. It can be used
+The `kapaow` command line tool is automatically installed. It can be used
 from the console with the `--help` flag to show all subcommands:
 
 ```console
-$ pao_plusplus --help
+$ kapaow --help
 ```
 
 > TODO show the most useful thing the CLI does! The CLI will have documentation
@@ -57,16 +57,16 @@ $ pao_plusplus --help
 
 <!-- Uncomment this section after your first ``tox -e finish``
 The most recent release can be installed from
-[PyPI](https://pypi.org/project/pao_plusplus/) with uv:
+[PyPI](https://pypi.org/project/kapaow/) with uv:
 
 ```console
-$ uv pip install pao_plusplus
+$ uv pip install kapaow
 ```
 
 or with pip:
 
 ```console
-$ python3 -m pip install pao_plusplus
+$ python3 -m pip install kapaow
 ```
 -->
 
@@ -280,7 +280,7 @@ This script does the following:
 
 1. Uses [bump-my-version](https://github.com/callowayproject/bump-my-version) to
    switch the version number in the `pyproject.toml`, `CITATION.cff`,
-   `src/pao_plusplus/version.py`, and
+   `src/kapaow/version.py`, and
    [`docs/source/conf.py`](docs/source/conf.py) to not have the `-dev` suffix
 2. Packages the code in both a tar archive and a wheel using
    [`uv build`](https://docs.astral.sh/uv/guides/publish/#building-your-package)

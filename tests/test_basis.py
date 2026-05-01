@@ -2,7 +2,7 @@
 
 import pytest
 
-from pao_plusplus.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis, Subshell
+from kapaow.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis, Subshell
 
 
 def test_ang_mtm() -> None:

@@ -1,6 +1,6 @@
 """Test the solve module."""
 
-from pao_plusplus.solve import _find_matches
+from kapaow.solve import _find_matches
 
 
 def test_find_matches() -> None:

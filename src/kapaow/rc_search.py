@@ -6,10 +6,10 @@ from pathlib import Path
 
 from upf_tools import UPFDict
 
-from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
-from pao_plusplus.pareto import _evaluate_point
-from pao_plusplus.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
+from kapaow.basis import AtomicBasis
+from kapaow.extend import BasisExtension, BasisExtensionViaAddition
+from kapaow.pareto import _evaluate_point
+from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def find_smallest_rc(
     Performs a bisection search over rc at fixed ``ri_factor``.  At each
     candidate rc the pseudoatomic problem is solved and the maximum
     absolute energy shift (taken over the original-basis orbitals, as in
-    :func:`pao_plusplus.pareto._evaluate_point`) is compared against
+    :func:`kapaow.pareto._evaluate_point`) is compared against
     ``threshold``.  Failures to converge are treated as not satisfying
     the threshold.
 

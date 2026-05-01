@@ -1,4 +1,4 @@
-"""Optimize module for pao_plusplus."""
+"""Optimize module for kapaow."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -10,13 +10,13 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from upf_tools import UPFDict
 
-from pao_plusplus.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
-from pao_plusplus.basis import AtomicBasis
-from pao_plusplus.data.sssp.structures import input_files
-from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
-from pao_plusplus.projectability import compute_projectability_cached, preload_material
-from pao_plusplus.solve import PseudoAtomicInput, compute_spread, solve_and_export
-from pao_plusplus.workflows import run_bands_workflow, run_qe_workflow
+from kapaow.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
+from kapaow.basis import AtomicBasis
+from kapaow.data.sssp.structures import input_files
+from kapaow.extend import BasisExtension, BasisExtensionViaAddition
+from kapaow.projectability import compute_projectability_cached, preload_material
+from kapaow.solve import PseudoAtomicInput, compute_spread, solve_and_export
+from kapaow.workflows import run_bands_workflow, run_qe_workflow
 
 RI_LOWER = 0.0
 RI_UPPER = 0.95
@@ -282,7 +282,7 @@ def _plot(
     import matplotlib.ticker as mticker
     from matplotlib.colors import LogNorm
 
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     # Layout in inches — then convert to figure fractions
     left_in = 0.55
@@ -375,7 +375,7 @@ def _plot(
     ax.set_ylabel(p2)
 
     if filename is not None:
-        from pao_plusplus.plotting import savefig
+        from kapaow.plotting import savefig
         savefig(plt, filename)
         plt.close(fig)
     else:

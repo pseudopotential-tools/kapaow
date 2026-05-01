@@ -1,4 +1,4 @@
 # see https://docs.codecov.com/v4.6/docs/codecov-yaml
 ignore:
-  - "src/pao_plusplus/__main__.py"
-  - "src/pao_plusplus/cli.py"
+  - "src/kapaow/__main__.py"
+  - "src/kapaow/cli.py"

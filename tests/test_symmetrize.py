@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`pao_plusplus.symmetrize`.
+"""Unit tests for :mod:`kapaow.symmetrize`.
 
 These tests exercise the numerical pieces (Wigner-D, Serre decomposition,
 bond-oriented hybridization) independently of AiiDA. The end-to-end hBN
@@ -12,7 +12,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import write as ase_write
 
-from pao_plusplus import symmetrize as sym
+from kapaow import symmetrize as sym
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ def _hbn_atoms() -> Atoms:
 
 def test_hbn_three_neighbours():
     atoms = _hbn_atoms()
-    # Both atoms in pao_plusplus numbering: B=0, N=1 (species order B,N).
+    # Both atoms in kapaow numbering: B=0, N=1 (species order B,N).
     atom_map = {0: 0, 1: 1}
     bonds = sym._find_bond_neighbours(atoms, atom_map, cutoff=None)
     assert len(bonds[0]) == 3

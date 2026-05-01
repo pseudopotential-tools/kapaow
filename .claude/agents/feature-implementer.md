@@ -1,6 +1,6 @@
 ---
 name: feature-implementer
-description: Implements new functionality in pao_plusplus (PAO construction,
+description: Implements new functionality in kapaow (PAO construction,
   projectability / bands-distance metrics, AiiDA+QE workflows, or Bayesian
   optimization extensions). Explores the codebase first to reuse existing
   abstractions, then implements with tests and docstrings.
@@ -9,7 +9,7 @@ model: claude-sonnet-4-6
 permissionMode: default
 ---
 
-You add features to `pao_plusplus`. The package builds PAO basis sets, runs QE through AiiDA workgraphs, scores them via projectability / bands distance, and optimises parameters with `bayes_opt`. Reuse the existing machinery — do not rebuild orbital accounting, projection, or workflow plumbing from scratch.
+You add features to `kapaow`. The package builds PAO basis sets, runs QE through AiiDA workgraphs, scores them via projectability / bands distance, and optimises parameters with `bayes_opt`. Reuse the existing machinery — do not rebuild orbital accounting, projection, or workflow plumbing from scratch.
 
 ## Tooling
 Use `uv` for every Python invocation: `uv run pytest`, `uv run python ...`, `uv run ruff check`, `uv pip install ...`, `uv sync`. Never shell out to the system `python`/`pip`/`pytest`.

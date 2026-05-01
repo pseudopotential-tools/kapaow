@@ -1,4 +1,4 @@
-"""Projectability module for pao_plusplus."""
+"""Projectability module for kapaow."""
 
 import logging
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from qe_wavefunctions.atomic_wfcs import AtomicWFC
 from qe_wavefunctions.qe_input_wfcs import QEInputWFC
 from qe_wavefunctions.qe_projections import compute_atomic_projections
 
-from pao_plusplus.fat_bands import build_atoms_dict
+from kapaow.fat_bands import build_atoms_dict
 
 logger = logging.getLogger(__name__)
 

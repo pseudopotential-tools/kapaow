@@ -1,4 +1,4 @@
-"""Input/output module for pao_plusplus."""
+"""Input/output module for kapaow."""
 
 from pathlib import Path
 

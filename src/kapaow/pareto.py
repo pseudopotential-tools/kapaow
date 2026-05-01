@@ -10,11 +10,11 @@ import numpy as np
 from atomic_femdvr.pseudo_atomic import ConvergenceError
 from upf_tools import UPFDict
 
-from pao_plusplus.basis import AngularMomentum, AtomicBasis
-from pao_plusplus.extend import BasisExtension, BasisExtensionViaAddition
-from pao_plusplus.optimize import ATOMIC_FEMDVR_PATCHES
-from pao_plusplus.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
-from pao_plusplus.solve import (
+from kapaow.basis import AngularMomentum, AtomicBasis
+from kapaow.extend import BasisExtension, BasisExtensionViaAddition
+from kapaow.optimize import ATOMIC_FEMDVR_PATCHES
+from kapaow.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
+from kapaow.solve import (
     DEFAULT_RC_MAX,
     DEFAULT_RC_MIN,
     DEFAULT_RI_FACTOR_MAX,
@@ -520,7 +520,7 @@ def plot_pareto(
     ax.set_ylabel("maximum energy shift (Ha)")
 
     if filename is not None:
-        from pao_plusplus.plotting import savefig
+        from kapaow.plotting import savefig
         savefig(plt, filename)
         plt.close(fig)
     else:

@@ -8,15 +8,15 @@ import numpy as np
 from atomic_femdvr.pseudo_atomic import PseudoAtomicInput, PseudoAtomicResult, solve_pseudo_atomic
 from upf_tools import UPFDict
 
-from pao_plusplus.basis import (
+from kapaow.basis import (
     AngularMomentum,
     AtomicBasis,
     PseudoatomicBasis,
     Subshell,
     ordered_subshells,
 )
-from pao_plusplus.extend import BasisExtension
-from pao_plusplus.io import read_wannier90_dat_file, write_wannier90_dat_file
+from kapaow.extend import BasisExtension
+from kapaow.io import read_wannier90_dat_file, write_wannier90_dat_file
 
 DEFAULT_RC_MIN = 5.0
 DEFAULT_RC_MAX = 15.0

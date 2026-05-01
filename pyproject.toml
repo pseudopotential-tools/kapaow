@@ -3,7 +3,7 @@ requires = ["uv_build>=0.6.6,<1.0"]
 build-backend = "uv_build"
 
 [project]
-name = "pao_plusplus"
+name = "kapaow"
 version = "0.0.1-dev"
 description = "Find optimal pseudoatomic orbitals for representing bands in bulk systems"
 readme = "README.md"
@@ -142,11 +142,11 @@ release = [
 "Bug Tracker" = "https://github.com/pseudopotential-tools/pao-plusplus/issues"
 Homepage = "https://github.com/pseudopotential-tools/pao-plusplus"
 Repository = "https://github.com/pseudopotential-tools/pao-plusplus.git"
-Documentation = "https://pao_plusplus.readthedocs.io"
+Documentation = "https://kapaow.readthedocs.io"
 Funding = "https://github.com/sponsors/elinscott"
 
 [project.scripts]
-pao_plusplus = "pao_plusplus.cli:main"
+kapaow = "kapaow.cli:main"
 
 [tool.cruft]
 skip = [
@@ -174,20 +174,20 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = [
-    "pao_plusplus",
+    "kapaow",
 ]
 omit = [
     "tests/*",
     "docs/*",
-    "src/pao_plusplus/version.py",
-    "src/pao_plusplus/__main__.py",
-    "src/pao_plusplus/cli.py",
+    "src/kapaow/version.py",
+    "src/kapaow/__main__.py",
+    "src/kapaow/cli.py",
 ]
 
 [tool.coverage.paths]
 source = [
-    "src/pao_plusplus",
-    ".tox/*/lib/python*/site-packages/pao_plusplus",
+    "src/kapaow",
+    ".tox/*/lib/python*/site-packages/kapaow",
 ]
 
 [tool.coverage.report]
@@ -236,7 +236,7 @@ ignore = [
 # See https://docs.astral.sh/ruff/settings/#per-file-ignores
 [tool.ruff.lint.per-file-ignores]
 # Ignore security issues in the version.py, which are inconsistent
-"src/pao_plusplus/version.py" = ["S603", "S607"]
+"src/kapaow/version.py" = ["S603", "S607"]
 # Ignore commented out code in Sphinx configuration file
 "docs/source/conf.py" = ["ERA001"]
 # Prints are okay in notebooks
@@ -253,7 +253,7 @@ known-third-party = [
     "tqdm",
 ]
 known-first-party = [
-    "pao_plusplus",
+    "kapaow",
     "tests",
 ]
 
@@ -292,7 +292,7 @@ search = "release = \"{current_version}\""
 replace = "release = \"{new_version}\""
 
 [[tool.bumpversion.files]]
-filename = "src/pao_plusplus/version.py"
+filename = "src/kapaow/version.py"
 search = "VERSION = \"{current_version}\""
 replace = "VERSION = \"{new_version}\""
 

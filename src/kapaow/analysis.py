@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pao_plusplus.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
+from kapaow.plotting import COLORMAP, REVTEX_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ def plot_cumulative_below_threshold(
     ax.legend()
 
     if filename is not None:
-        from pao_plusplus.plotting import savefig
+        from kapaow.plotting import savefig
         savefig(plt, filename)
         plt.close(fig)
     else:

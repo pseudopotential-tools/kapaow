@@ -70,7 +70,7 @@ class WannierBenchmarkResult:
         return self.label
 
 
-from pao_plusplus.config import BenchmarkConfig, PaoConfig, UpfConfig  # noqa: F401
+from kapaow.config import BenchmarkConfig, PaoConfig, UpfConfig  # noqa: F401
 
 
 def generate_dat_files(
@@ -93,9 +93,9 @@ def generate_dat_files(
     """
     import itertools
 
-    from pao_plusplus.io import format_wannier90_dat
-    from pao_plusplus.openmx import convert_to_wannier90, pao_to_bessel, parse_select, read_openmx_pao
-    from pao_plusplus.solve import solve_and_export
+    from kapaow.io import format_wannier90_dat
+    from kapaow.openmx import convert_to_wannier90, pao_to_bessel, parse_select, read_openmx_pao
+    from kapaow.solve import solve_and_export
 
     solver_dir = working_dir / "projectors"
     solver_dir.mkdir(parents=True, exist_ok=True)
@@ -124,7 +124,7 @@ def generate_dat_files(
                         f"Check the UPF file: {elem_config.upf}"
                     )
             elif isinstance(elem_config, PaoConfig):
-                from pao_plusplus.data.openmx import fetch_pao
+                from kapaow.data.openmx import fetch_pao
 
                 pao_path = fetch_pao(element, elem_config.rc)
                 pao = read_openmx_pao(pao_path)
@@ -475,7 +475,7 @@ def run_benchmark(
     Returns:
         List of WannierBenchmarkResult, one per combination.
     """
-    from pao_plusplus.workflows import run_wannierize_optimize_workflow, run_wannierize_workflow
+    from kapaow.workflows import run_wannierize_optimize_workflow, run_wannierize_workflow
 
     optimize = optimize_strategy in ("bayesian", "grid")
     otsu = optimize_strategy == "otsu"
@@ -496,7 +496,7 @@ def run_benchmark(
     # Pre-compute NSCF wavefunctions for Otsu (shared across combinations)
     _otsu_qe_result = None
     if otsu:
-        from pao_plusplus.workflows import run_qe_workflow
+        from kapaow.workflows import run_qe_workflow
 
         _otsu_qe_result = run_qe_workflow(
             structure_file, working_dir, min_nbnd=min_nbnd, periodic=periodic
@@ -518,8 +518,8 @@ def run_benchmark(
         combo_dis_proj_max = dis_proj_max
         combo_dis_proj_min = dis_proj_min
         if otsu:
-            from pao_plusplus.fat_bands import build_atoms_dict, compute_amn_from_wfc
-            from pao_plusplus.projectability import (
+            from kapaow.fat_bands import build_atoms_dict, compute_amn_from_wfc
+            from kapaow.projectability import (
                 _make_qe_input_wfc,
                 suggest_disentanglement_thresholds,
             )
@@ -771,7 +771,7 @@ def plot_convergence(
     """
     import matplotlib.pyplot as plt
 
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     has_dis = any(r.dis_iterations is not None for r in results)
     has_spread = any(r.spread_cycles is not None for r in results)
@@ -796,7 +796,7 @@ def plot_convergence(
     if has_spread:
         _plot_spread_panel(axes[ax_idx], results)
 
-    from pao_plusplus.plotting import savefig as _savefig
+    from kapaow.plotting import savefig as _savefig
 
     fig.tight_layout()
     _savefig(fig, filename)
@@ -913,7 +913,7 @@ def _plot_fat_bands_on_axis(
     Returns the ``channel_colors`` mapping so callers can build a
     combined legend.
     """
-    from pao_plusplus.fat_bands import draw_fat_bands_on_axis
+    from kapaow.fat_bands import draw_fat_bands_on_axis
 
     return draw_fat_bands_on_axis(
         ax,
@@ -933,7 +933,7 @@ def _plot_projectability_panel(
     """Plot total projectability scatter on the side panel."""
     from matplotlib import cm
 
-    from pao_plusplus.plotting import COLORMAP
+    from kapaow.plotting import COLORMAP
 
     energies = dft_band_plot_data.energies
     total_proj = sum(channel_projectabilities.values())
@@ -1015,7 +1015,7 @@ def plot_bands_comparison(
     """
     import matplotlib.pyplot as plt
 
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     band_results = [r for r in results if r.band_energies is not None]
     if not band_results:
@@ -1060,7 +1060,7 @@ def plot_bands_comparison(
     _configure_band_axis(ax, band_results[0], emin, emax)
     extra_handles = None
     if channel_colors is not None:
-        from pao_plusplus.fat_bands import build_fat_bands_legend_handles
+        from kapaow.fat_bands import build_fat_bands_legend_handles
 
         extra_handles = build_fat_bands_legend_handles(channel_colors)
     _build_band_legend(
@@ -1068,13 +1068,13 @@ def plot_bands_comparison(
     )
 
     if has_fat_bands:
-        from pao_plusplus.fat_bands import _configure_proj_panel
+        from kapaow.fat_bands import _configure_proj_panel
 
         _configure_proj_panel(ax_proj)
         fig.subplots_adjust(left=0.15, bottom=0.15, right=0.99, top=0.925)
     else:
         fig.tight_layout()
-    from pao_plusplus.plotting import savefig as _savefig
+    from kapaow.plotting import savefig as _savefig
 
     _savefig(fig, filename)
     plt.close(fig)
@@ -1093,7 +1093,7 @@ def plot_optimize_trajectory(
     """
     import matplotlib.pyplot as plt
 
-    from pao_plusplus.plotting import REVTEX_COLUMN_WIDTH
+    from kapaow.plotting import REVTEX_COLUMN_WIDTH
 
     valid = [t for t in trials if t.bands_distance is not None]
     if not valid:
@@ -1120,7 +1120,7 @@ def plot_optimize_trajectory(
 
     ax.set_xlabel(r"$\mathrm{dis\_proj\_max}$")
     ax.set_ylabel("Bands distance (eV)")
-    from pao_plusplus.plotting import savefig as _savefig
+    from kapaow.plotting import savefig as _savefig
 
     ax.legend(fontsize=7)
     fig.tight_layout()

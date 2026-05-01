@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pao_plusplus.io import (
+from kapaow.io import (
     format_wannier90_dat,
     read_wannier90_dat_file,
     write_wannier90_dat_file,
