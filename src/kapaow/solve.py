@@ -209,70 +209,29 @@ def _filter_bessel_file(
     return bessel_file
 
 
-def compute_spread(
+def get_outermost_wavefunction(
     dat_file: Path,
     atomic_basis: AtomicBasis,
-) -> float:
-    r"""Compute the wavefunction spread for the outermost subshell.
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract the outermost radial wavefunction from a Wannier90 .dat file.
 
-    Uses :math:`\Omega = \int dr\, r^4 |R_{nl}(r)|^2`.
+    The "outermost" orbital is the highest-energy occupied subshell of
+    *atomic_basis* under Madelung ordering. The solver may produce more
+    orbitals per l channel than the basis declares (``nmax+1`` per l),
+    so we use the basis orbital count to pick the correct radial
+    function for that channel.
 
     Parameters
     ----------
     dat_file
         Path to the Wannier90 .dat file containing the radial wavefunctions.
     atomic_basis
-        The atomic basis, used to identify which orbital(s) belong to the outermost subshell.
-
-    Returns
-    -------
-    float
-        The spread averaged over the outermost subshell orbital(s).
-    """
-    _, r, l_values, orbitals = read_wannier90_dat_file(dat_file)
-    r_arr = np.array(r)
-
-    # Find the outermost subshell via Madelung ordering
-    outermost: Subshell | None = None
-    for subshell in ordered_subshells[::-1]:
-        if subshell in atomic_basis:
-            outermost = subshell
-            break
-    if outermost is None:
-        raise ValueError("Basis set is empty.")
-
-    # Find which orbital indices in the dat file correspond to the outermost subshell's l value.
-    # The solver may produce more orbitals per l channel than are in the basis (nmax+1 per l),
-    # so we use the basis orbital count to pick the correct one.
-    target_l = outermost.l.value
-    matching_indices = [i for i, l in enumerate(l_values) if l == target_l]
-    if not matching_indices:
-        raise ValueError(f"No orbital with l={target_l} found in dat file.")
-
-    n_per_l = atomic_basis.to_pseudoatomic_basis().number_of_orbitals
-    n_target = n_per_l.get(outermost.l, 0)
-    if n_target == 0 or n_target > len(matching_indices):
-        raise ValueError(
-            f"Expected {n_target} orbital(s) with l={target_l}, found {len(matching_indices)}."
-        )
-    idx = matching_indices[n_target - 1]
-    r_nl = orbitals[idx]
-
-    # Omega = integral dr r^4 |R_nl(r)|^2
-    integrand = r_arr**4 * r_nl**2
-    return float(np.trapezoid(integrand, r_arr))
-
-
-def get_outermost_wavefunction(
-    dat_file: Path,
-    atomic_basis: AtomicBasis,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Extract the outermost radial wavefunction from a dat file.
+        Atomic basis identifying which orbital is the outermost.
 
     Returns
     -------
     r, r_nl
-        The radial grid and corresponding wavefunction values.
+        The radial grid and the corresponding radial wavefunction.
     """
     _, r, l_values, orbitals = read_wannier90_dat_file(dat_file)
     r_arr = np.array(r)
@@ -299,6 +258,32 @@ def get_outermost_wavefunction(
     idx = matching_indices[n_target - 1]
 
     return r_arr, orbitals[idx]
+
+
+def compute_spread(
+    dat_file: Path,
+    atomic_basis: AtomicBasis,
+) -> float:
+    r"""Compute the spatial spread of the outermost radial wavefunction.
+
+    Uses :math:`\Omega = \int dr\, r^4 |R_{nl}(r)|^2`.
+
+    Parameters
+    ----------
+    dat_file
+        Path to the Wannier90 .dat file containing the radial wavefunctions.
+    atomic_basis
+        Atomic basis, used to identify the outermost subshell via
+        :func:`get_outermost_wavefunction`.
+
+    Returns
+    -------
+    float
+        The spread of the outermost orbital.
+    """
+    r_arr, r_nl = get_outermost_wavefunction(dat_file, atomic_basis)
+    integrand = r_arr**4 * r_nl**2
+    return float(np.trapezoid(integrand, r_arr))
 
 
 def _find_matches(values: list[int], desired_values: list[int]) -> list[int]:
