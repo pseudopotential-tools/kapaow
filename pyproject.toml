@@ -80,7 +80,7 @@ tests = [
 ]
 docs = [
     "sphinx>=8",
-    "sphinx-rtd-theme>=3.0","sphinx-click", 
+    "sphinx-rtd-theme>=3.0","sphinx-click",
     "sphinx_automodapi",
     # Include if your project uses Pydantic:
     # "autodoc_pydantic",
@@ -243,6 +243,10 @@ ignore = [
 "notebooks/**/*.ipynb" = ["T201"]
 # Allow assert within tests
 "tests/**/*.py" = ["S101"]
+# Math-heavy modules: uppercase variable/argument names are mathematical convention
+# (B, D, M, U, R, S, etc. denote matrices)
+"**/symmetrize.py" = ["N803", "N806"]
+"**/test_symmetrize.py" = ["N803", "N806"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"

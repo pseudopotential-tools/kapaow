@@ -28,6 +28,7 @@ def savefig(fig_or_plt: Any, filename: Path | str, **kwargs: Any) -> None:
         kwargs.setdefault("dpi", RASTER_DPI)
     fig_or_plt.savefig(filename, **kwargs)
 
+
 sns.set_context("paper", font_scale=0.7)
 
 

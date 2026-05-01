@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
+from kapaow.config import BenchmarkConfig, PaoConfig, UpfConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,9 +72,6 @@ class WannierBenchmarkResult:
         return self.label
 
 
-from kapaow.config import BenchmarkConfig, PaoConfig, UpfConfig  # noqa: F401
-
-
 def generate_dat_files(
     config: BenchmarkConfig,
     working_dir: Path,
@@ -109,7 +108,7 @@ def generate_dat_files(
         for i, elem_config in enumerate(configs):
             label = elem_config.label or f"{element} set {i}"
             if isinstance(elem_config, UpfConfig):
-                result, bessel_path = solve_and_export(
+                _, bessel_path = solve_and_export(
                     upf_path=elem_config.upf,
                     rc=elem_config.rc,
                     ri_factor=elem_config.ri_factor,
@@ -153,7 +152,7 @@ def generate_dat_files(
         strict=True,
     ):
         path_map = {el: path for el, (_, path) in zip(elements, combo, strict=True)}
-        bessel_map = {el: bp for el, bp in zip(elements, bessel_combo, strict=True)}
+        bessel_map = dict(zip(elements, bessel_combo, strict=True))
         if len(varying) <= 1:
             if varying:
                 idx = elements.index(varying[0])
@@ -290,9 +289,9 @@ def extract_optimize_trajectory(
     Returns:
         List of OptimizeTrialResult, one per optimization iteration.
     """
+    from aiida_wannier90_workflows.common.types import OptimizeMuReference
     from aiida_wannier90_workflows.utils.bands.distance import bands_distance_fermi_dirac
     from aiida_wannier90_workflows.workflows.optimize import _resolve_mu
-    from aiida_wannier90_workflows.common.types import OptimizeMuReference
 
     # The optimize workchain sits inside a workgraph task. We need to find
     # the actual Wannier90OptimizeWorkChain node.
@@ -310,8 +309,7 @@ def extract_optimize_trajectory(
     # Use the called property directly instead of QueryBuilder to avoid tag issues.
     all_called = sorted(optimize_wc.called, key=lambda n: n.ctime)
     trial_workchains = [
-        n for n in all_called
-        if getattr(n, "process_label", "") == "Wannier90BaseWorkChain"
+        n for n in all_called if getattr(n, "process_label", "") == "Wannier90BaseWorkChain"
     ]
 
     trials = []
@@ -319,10 +317,7 @@ def extract_optimize_trajectory(
         # Extract dis_proj_max/min from the W90 calculation parameters
         # The BaseWorkChain wraps a Wannier90Calculation
         try:
-            w90_calc = [
-                c for c in wc.called
-                if c.process_label == "Wannier90Calculation"
-            ][-1]
+            w90_calc = [c for c in wc.called if c.process_label == "Wannier90Calculation"][-1]
             w90_params = w90_calc.inputs.parameters.get_dict()
             dis_proj_max = w90_params.get("dis_proj_max", float("nan"))
             dis_proj_min = w90_params.get("dis_proj_min", float("nan"))
@@ -336,22 +331,28 @@ def extract_optimize_trajectory(
             try:
                 mu = _resolve_mu(mu_ref, mu_shift, w90_params, ref_bands)
                 bands_dist = bands_distance_fermi_dirac(
-                    ref_bands, wc.outputs.interpolated_bands,
-                    mu=mu, sigma=sigma,
+                    ref_bands,
+                    wc.outputs.interpolated_bands,
+                    mu=mu,
+                    sigma=sigma,
                 )
             except Exception as exc:
                 logger.warning("Failed to compute bands distance for %s: %s", wc.pk, exc)
         elif not wc.is_finished_ok:
             logger.info(
                 "Trial %s not finished_ok (exit_status=%s): %s",
-                wc.pk, wc.exit_status, wc.exit_message,
+                wc.pk,
+                wc.exit_status,
+                wc.exit_message,
             )
 
-        trials.append(OptimizeTrialResult(
-            dis_proj_min=dis_proj_min,
-            dis_proj_max=dis_proj_max,
-            bands_distance=bands_dist,
-        ))
+        trials.append(
+            OptimizeTrialResult(
+                dis_proj_min=dis_proj_min,
+                dis_proj_max=dis_proj_max,
+                bands_distance=bands_dist,
+            )
+        )
 
     return trials
 
@@ -489,9 +490,7 @@ def run_benchmark(
             "bands_kpoints_pk is required when optimize_strategy is 'bayesian' or 'grid'."
         )
     if otsu and bessel_combinations is None:
-        raise ValueError(
-            "bessel_combinations is required when optimize_strategy='otsu'."
-        )
+        raise ValueError("bessel_combinations is required when optimize_strategy='otsu'.")
 
     # Pre-compute NSCF wavefunctions for Otsu (shared across combinations)
     _otsu_qe_result = None
@@ -524,12 +523,8 @@ def run_benchmark(
                 suggest_disentanglement_thresholds,
             )
 
-            atoms_dict, lattice_vectors = build_atoms_dict(
-                _otsu_qe_result.nscf_input_file
-            )
-            qe_wfc = _make_qe_input_wfc(
-                _otsu_qe_result.nscf_wfc_dir, lattice_vectors
-            )
+            atoms_dict, lattice_vectors = build_atoms_dict(_otsu_qe_result.nscf_input_file)
+            qe_wfc = _make_qe_input_wfc(_otsu_qe_result.nscf_wfc_dir, lattice_vectors)
             num_kpoints = len(_otsu_qe_result.kpoint_weights)
             _smn, amn, cmn, _ch = compute_amn_from_wfc(
                 qe_wfc=qe_wfc,
@@ -538,9 +533,7 @@ def run_benchmark(
                 lattice_vectors=lattice_vectors,
                 num_kpoints=num_kpoints,
             )
-            otsu_min, otsu_max = (
-                suggest_disentanglement_thresholds(amn, cmn, otsu_bins=otsu_bins)
-            )
+            otsu_min, otsu_max = suggest_disentanglement_thresholds(amn, cmn, otsu_bins=otsu_bins)
             combo_dis_proj_max = otsu_max
             # An explicit dis_proj_min overrides the Otsu value
             if dis_proj_min is not None:
@@ -549,7 +542,8 @@ def run_benchmark(
                 combo_dis_proj_min = otsu_min
             logger.info(
                 "Otsu thresholds for %s: dis_proj_min=%.4f%s, dis_proj_max=%.4f",
-                label, combo_dis_proj_min,
+                label,
+                combo_dis_proj_min,
                 " (explicit override)" if dis_proj_min is not None else " (otsu)",
                 combo_dis_proj_max,
             )
@@ -557,7 +551,9 @@ def run_benchmark(
         if optimize:
             # Explicit values become single-element ranges (held fixed);
             # None values become None ranges (optimized).
-            dis_proj_max_range = [combo_dis_proj_max] if combo_dis_proj_max is not None else [0.6, 0.95]
+            dis_proj_max_range = (
+                [combo_dis_proj_max] if combo_dis_proj_max is not None else [0.6, 0.95]
+            )
             dis_proj_min_range = [combo_dis_proj_min] if combo_dis_proj_min is not None else None
             process_node = run_wannierize_optimize_workflow(
                 structure_file=structure_file,
@@ -568,7 +564,6 @@ def run_benchmark(
                 dis_proj_max_range=dis_proj_max_range,
                 dis_proj_min_range=dis_proj_min_range,
                 dis_froz_max=dis_froz_max,
-
                 extra_w90_params=extra_w90_params,
                 strategy=optimize_strategy,
                 min_nbnd=min_nbnd,
@@ -577,7 +572,10 @@ def run_benchmark(
                 bond_cutoff=bond_cutoff,
             )
             result = extract_benchmark_result(
-                process_node, first_dat, label=label, use_optimal=True,
+                process_node,
+                first_dat,
+                label=label,
+                use_optimal=True,
                 dft_fermi_energy=fermi_energy,
             )
         else:
@@ -590,7 +588,6 @@ def run_benchmark(
                 dis_proj_max=combo_dis_proj_max if combo_dis_proj_max is not None else 0.8,
                 dis_proj_min=combo_dis_proj_min,
                 dis_froz_max=dis_froz_max,
-
                 extra_w90_params=extra_w90_params,
                 min_nbnd=min_nbnd,
                 periodic=periodic,
@@ -598,7 +595,9 @@ def run_benchmark(
                 bond_cutoff=bond_cutoff,
             )
             result = extract_benchmark_result(
-                process_node, first_dat, label=label,
+                process_node,
+                first_dat,
+                label=label,
                 dft_fermi_energy=fermi_energy,
             )
 
@@ -708,9 +707,7 @@ def _plot_disentanglement_panel(
     """Plot the disentanglement convergence panel (Omega_I vs iteration)."""
     best_dis = min(r.dis_omega_i[-1] for r in results if r.dis_iterations is not None)
     margin_dis = 0.02
-    data_max = max(
-        float(np.max(r.dis_omega_i)) for r in results if r.dis_iterations is not None
-    )
+    data_max = max(float(np.max(r.dis_omega_i)) for r in results if r.dis_iterations is not None)
     for r in results:
         if r.dis_iterations is not None:
             (line,) = ax.plot(
@@ -976,7 +973,10 @@ def _build_band_legend(
     if extra_handles:
         handles.extend(extra_handles)
     ax.legend(
-        handles=handles, fontsize=6, loc="lower right", bbox_to_anchor=(1, 1),
+        handles=handles,
+        fontsize=6,
+        loc="lower right",
+        bbox_to_anchor=(1, 1),
         ncol=len(handles),
     )
 
@@ -1063,9 +1063,7 @@ def plot_bands_comparison(
         from kapaow.fat_bands import build_fat_bands_legend_handles
 
         extra_handles = build_fat_bands_legend_handles(channel_colors)
-    _build_band_legend(
-        ax, band_results, colors, dft_band_plot_data, extra_handles=extra_handles
-    )
+    _build_band_legend(ax, band_results, colors, dft_band_plot_data, extra_handles=extra_handles)
 
     if has_fat_bands:
         from kapaow.fat_bands import _configure_proj_panel
@@ -1106,16 +1104,20 @@ def plot_optimize_trajectory(
     fig, ax = plt.subplots(figsize=(REVTEX_COLUMN_WIDTH, REVTEX_COLUMN_WIDTH * 0.6))
 
     # Color points by iteration order
-    for i, (x, y) in enumerate(zip(dis_proj_max, bands_dist)):
+    for i, (x, y) in enumerate(zip(dis_proj_max, bands_dist, strict=True)):
         ax.plot(x, y, "o", color=f"C{i}", markersize=5, zorder=3)
-        ax.annotate(str(i + 1), (x, y), fontsize=6, textcoords="offset points",
-                    xytext=(4, 4))
+        ax.annotate(str(i + 1), (x, y), fontsize=6, textcoords="offset points", xytext=(4, 4))
 
     # Highlight the best trial
     best_idx = int(np.argmin(bands_dist))
     ax.plot(
-        dis_proj_max[best_idx], bands_dist[best_idx],
-        "*", color="C3", markersize=12, zorder=4, label=f"best (iter {best_idx + 1})",
+        dis_proj_max[best_idx],
+        bands_dist[best_idx],
+        "*",
+        color="C3",
+        markersize=12,
+        zorder=4,
+        label=f"best (iter {best_idx + 1})",
     )
 
     ax.set_xlabel(r"$\mathrm{dis\_proj\_max}$")

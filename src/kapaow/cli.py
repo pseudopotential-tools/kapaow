@@ -351,7 +351,11 @@ def spread(
     )
 
     # Always dump JSON (to a default path if not specified), then plot from it
-    effective_json = json_path if json_path is not None else Path("tmp/optimize/spread") / output.with_suffix(".json").name
+    effective_json = (
+        json_path
+        if json_path is not None
+        else Path("tmp/optimize/spread") / output.with_suffix(".json").name
+    )
     dump_pareto_json(spreads, max_energy_shifts, metadata, effective_json, upf_path=upf)
     plot_pareto(effective_json, filename=output, loglog=loglog, logy=logy)
     click.echo(f"Pareto plot saved to {output}")
@@ -425,9 +429,7 @@ def rc(
         tol=tol,
     )
     effective_json = (
-        json_path
-        if json_path is not None
-        else Path("tmp/optimize/rc_search") / f"{upf.stem}.json"
+        json_path if json_path is not None else Path("tmp/optimize/rc_search") / f"{upf.stem}.json"
     )
     dump_rc_search_json(
         rc_value, points, ri_factor, threshold, effective_json, upf_path=upf, add=add
@@ -451,7 +453,7 @@ def rc(
     help="Working directory for benchmark outputs (default: tmp/benchmark/<config_stem>).",
 )
 @symmetrize_option
-def benchmark(
+def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow stages
     config_path: Path,
     output: Path | None,
     symmetrize: bool,
@@ -587,7 +589,7 @@ def benchmark(
             # symmetry_adapted_rotation expects.
             dat_map = combinations[0][1]
             proj_dir = _prepare_proj_dir(dat_map, dest_dir=working_dir / "fat_bands")
-            B, labels = symmetry_adapted_rotation(
+            rotation_matrix, labels = symmetry_adapted_rotation(
                 structure_file=structure,
                 proj_dir=proj_dir,
                 atoms_dict=atoms_dict,
@@ -596,8 +598,8 @@ def benchmark(
                 bond_cutoff=cfg.bond_cutoff,
                 with_l_padding=True,
             )
-            amn = apply_rotation_to_amn(amn, B)
-            cmn = apply_rotation_to_amn(cmn, B)
+            amn = apply_rotation_to_amn(amn, rotation_matrix)
+            cmn = apply_rotation_to_amn(cmn, rotation_matrix)
             channel_indices = group_indices_by_label(labels)
         channel_projectabilities = compute_projectability_per_channel(amn, cmn, channel_indices)
         click.echo("Fat bands computed for single projector set.")
@@ -910,7 +912,7 @@ def fat_bands(
     symmetrize: bool,
     output: Path,
 ) -> None:
-    """Plot fat bands colored by projectability.
+    r"""Plot fat bands colored by projectability.
 
     CONFIG_FILE is a TOML file specifying the structure and per-element
     pseudopotentials. Example:
@@ -977,7 +979,7 @@ def compare_projectability(
     num_bands: int | None,
     output: Path,
 ) -> None:
-    """Compare total projectability across different basis sets.
+    r"""Compare total projectability across different basis sets.
 
     CONFIG_FILE is a TOML file where elements can have multiple entries
     (using [[Element]] syntax) to define comparison sets. Example:
@@ -1052,11 +1054,13 @@ def compare_gauge_matrices(
     result = compare_matrices(config_file, working_dir=working_dir, num_bands=num_bands)
     click.echo(format_distance_table(result.matrix_labels, result.distance_table))
 
+    def _fmt_angles(a: Any) -> str:
+        return "  ".join(f"{v:5.2f}" for v in np.degrees(a))
+
     for label_i, label_j, angles_a, angles_u in result.principal_angle_comparisons:
         click.echo(f"\nPrincipal angles: {label_i} vs {label_j}")
-        fmt = lambda a: "  ".join(f"{v:5.2f}" for v in np.degrees(a))
-        click.echo(f"  from A†A: {fmt(angles_a)} deg")
-        click.echo(f"  from U†U: {fmt(angles_u)} deg")
+        click.echo(f"  from A†A: {_fmt_angles(angles_a)} deg")
+        click.echo(f"  from U†U: {_fmt_angles(angles_u)} deg")
 
 
 @plot.command(name="unshifted-vs-rc")
@@ -1111,7 +1115,7 @@ def optimize_trajectory(pk: int, output: Path) -> None:
     click.echo(f"Found {len(trials)} trial(s):")
     for i, t in enumerate(trials):
         dist_str = f"{t.bands_distance:.4f} eV" if t.bands_distance is not None else "failed"
-        click.echo(f"  {i+1}. dis_proj_max={t.dis_proj_max:.4f}  bands_distance={dist_str}")
+        click.echo(f"  {i + 1}. dis_proj_max={t.dis_proj_max:.4f}  bands_distance={dist_str}")
 
     plot_optimize_trajectory(trials, filename=output)
     click.echo(f"Plot saved to {output}")

@@ -187,11 +187,10 @@ def pao_to_bessel(
     Path
         The path to the written ``.h5`` file.
     """
-    from scipy.interpolate import interp1d
-
     from atomic_femdvr.bessel_transform import bessel_integral
     from atomic_femdvr.femdvr import FEDVR_Basis
     from atomic_femdvr.projector_output import write_bessel_hdf5
+    from scipy.interpolate import interp1d
 
     _, r_list, l_values, orbitals = convert_to_wannier90(pao, selected)
     r = np.array(r_list)

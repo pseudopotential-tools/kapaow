@@ -189,7 +189,9 @@ class GaugeComparisonResult:
     """Labels for each matrix in the Frobenius distance table."""
     distance_table: npt.NDArray[np.float64]
     """Symmetric pairwise Frobenius distance table."""
-    principal_angle_comparisons: list[tuple[str, str, npt.NDArray[np.float64], npt.NDArray[np.float64]]]
+    principal_angle_comparisons: list[
+        tuple[str, str, npt.NDArray[np.float64], npt.NDArray[np.float64]]
+    ]
     """For each cross-set pair: (label_i, label_j, angles_from_A, angles_from_U)."""
 
 
@@ -278,9 +280,7 @@ def compare_matrices(
             distance_table[i, j] = np.nan
             distance_table[j, i] = np.nan
         else:
-            d = bz_averaged_frobenius_distance(
-                all_matrices[i], all_matrices[j], kpoint_weights
-            )
+            d = bz_averaged_frobenius_distance(all_matrices[i], all_matrices[j], kpoint_weights)
             distance_table[i, j] = d
             distance_table[j, i] = d
 

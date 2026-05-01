@@ -14,7 +14,6 @@ from ase.io import write as ase_write
 
 from kapaow import symmetrize as sym
 
-
 # ---------------------------------------------------------------------------
 # Wigner-D
 # ---------------------------------------------------------------------------
@@ -34,6 +33,7 @@ def _rot_axis_angle(axis: np.ndarray, angle: float) -> np.ndarray:
 
 
 def test_wigner_d_l0_is_identity():
+    """D^0(R) is the 1x1 identity for any rotation R."""
     R = _rot_axis_angle(np.array([1.0, 2.0, 3.0]), 1.2)
     D = sym._wigner_d_complex(0, R)
     assert D.shape == (1, 1)
@@ -41,6 +41,7 @@ def test_wigner_d_l0_is_identity():
 
 
 def test_wigner_d_unitary():
+    """D^l(R) is unitary for random proper rotations."""
     rng = np.random.default_rng(1)
     for l in (1, 2, 3):
         for _ in range(5):
@@ -52,6 +53,7 @@ def test_wigner_d_unitary():
 
 
 def test_wigner_d_composition():
+    """D^l(R1 R2) = D^l(R1) @ D^l(R2) (group homomorphism)."""
     rng = np.random.default_rng(2)
     R1 = _rot_axis_angle(rng.standard_normal(3), 0.7)
     R2 = _rot_axis_angle(rng.standard_normal(3), -1.3)
@@ -62,7 +64,7 @@ def test_wigner_d_composition():
 
 
 def test_wigner_d_improper_inversion():
-    # Inversion -I: D^l = (-1)^l * I.
+    """Inversion -I: D^l = (-1)^l * I."""
     inv = -np.eye(3)
     for l in (0, 1, 2):
         D = sym._wigner_d_complex(l, inv)
@@ -70,6 +72,7 @@ def test_wigner_d_improper_inversion():
 
 
 def test_wigner_d_p_z_rotation():
+    """pi/2 rotation about z fixes pz (m=0 diagonal entry equals 1)."""
     # A rotation of pi/2 about z mixes (px, py) and leaves pz untouched.
     # In the m = -1, 0, +1 basis, pz corresponds to m=0 only.
     R = _rot_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 2)
@@ -84,7 +87,7 @@ def test_wigner_d_p_z_rotation():
 
 
 def test_serre_trivial_group():
-    # Identity only: every column is its own isotypic block.
+    """Identity-only group: every column is its own isotypic block."""
     D = [np.eye(4, dtype=np.complex128)]
     U, tags = sym._serre_isotypic_basis(D)
     assert U.shape == (4, 4)
@@ -92,6 +95,7 @@ def test_serre_trivial_group():
 
 
 def test_serre_c3v_block_structure():
+    """C3v on p-rep gives two isotypic blocks: E (px, py) and A_1 (pz)."""
     # C_3v on the p rep: E (px, py) + A_1 (pz) -> blocks of size 2 + 1.
     # Requires a non-abelian group so that (px, py) genuinely pair.
     rotations = []
@@ -136,6 +140,7 @@ def _hbn_atoms() -> Atoms:
 
 
 def test_hbn_three_neighbours():
+    """Each hBN site has exactly 3 nearest neighbours lying in the xy-plane."""
     atoms = _hbn_atoms()
     # Both atoms in kapaow numbering: B=0, N=1 (species order B,N).
     atom_map = {0: 0, 1: 1}
@@ -164,6 +169,7 @@ def _hbn_atoms_dict() -> dict:
 
 
 def test_hbn_symmetrize_end_to_end(tmp_path, monkeypatch):
+    """For hBN with s+p basis: 3 sp2 hybrids + 1 pz irrep per atom, unitary B."""
     atoms = _hbn_atoms()
     structure_file = tmp_path / "hBN.xsf"
     ase_write(str(structure_file), atoms)
@@ -205,16 +211,16 @@ def test_hbn_symmetrize_end_to_end(tmp_path, monkeypatch):
     # The non-bonding (irrep) orbital on atom 0 should be (essentially) pure pz.
     # The flat layout is in W90's real-Ylm basis with l=1 ordered (pz, px, py),
     # so within atom 0's (s, pz, px, py) slots pz lives at local index 1.
-    irrep_row = next(
-        B[i] for i in range(4) if labels[i].kind == "irrep"
-    )
+    irrep_row = next(B[i] for i in range(4) if labels[i].kind == "irrep")
     weights = np.abs(irrep_row[:4]) ** 2
     assert weights[1] > 0.99, f"pz not isolated in complement: {weights}"
 
     # Each hybrid lobe on atom 0 should point at a distinct bond_target and
     # together the three bond_targets should be 3 copies of atom index 1 (the
     # three N images under PBC all map back to atom 1).
-    hybrid_targets = [lab.bond_target for lab in labels if lab.atom_index == 0 and lab.kind == "hybrid"]
+    hybrid_targets = [
+        lab.bond_target for lab in labels if lab.atom_index == 0 and lab.kind == "hybrid"
+    ]
     assert all(t == 1 for t in hybrid_targets)
     assert len(hybrid_targets) == 3
 
@@ -296,6 +302,7 @@ def test_hbn_extended_basis_flat_vs_padded(tmp_path, monkeypatch):
 
 
 def test_hbn_no_hybridize(tmp_path, monkeypatch):
+    """With hybridize=False all labels are irreps; B is still unitary."""
     atoms = _hbn_atoms()
     structure_file = tmp_path / "hBN.xsf"
     ase_write(str(structure_file), atoms)
@@ -345,10 +352,8 @@ def _pyramidal_atoms() -> Atoms:
     center = np.array([a / 2, a / 2, a / 2])
     neighbours = []
     for phi in (0.0, 2 * np.pi / 3, 4 * np.pi / 3):
-        neighbours.append(
-            center + np.array([r * np.cos(phi), r * np.sin(phi), -h])
-        )
-    positions = [center] + neighbours
+        neighbours.append(center + np.array([r * np.cos(phi), r * np.sin(phi), -h]))
+    positions = [center, *neighbours]
     atoms = Atoms(
         symbols=["P"] * 4,
         positions=positions,
@@ -416,6 +421,7 @@ def test_pyramidal_sp3(tmp_path, monkeypatch):
 
 
 def test_complex_to_real_ylm_unitary_is_unitary():
+    """_complex_to_real_ylm_unitary returns a unitary matrix for l=0..3."""
     for l in range(4):
         U = sym._complex_to_real_ylm_unitary(l)
         assert U.shape == (2 * l + 1, 2 * l + 1)
@@ -423,6 +429,7 @@ def test_complex_to_real_ylm_unitary_is_unitary():
 
 
 def test_complex_to_real_ylm_unitary_l1_explicit():
+    """l=1 unitary matches the explicit W90 pz/px/py ordering."""
     # W90 ordering: row 0 = pz, row 1 = px, row 2 = py.
     # Columns indexed by m = -1, 0, +1.
     U = sym._complex_to_real_ylm_unitary(1)

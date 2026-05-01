@@ -15,7 +15,6 @@ from ase.units import Bohr
 from matplotlib import pyplot as plt
 from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedFormatter, FixedLocator
 from qe_wavefunctions.atomic_wfcs import AtomicWFC
 from qe_wavefunctions.qe_input_wfcs import QEInputWFC
 from qe_wavefunctions.qe_projections import compute_atomic_projections
@@ -63,6 +62,7 @@ def _pretty_orbital_label(tag: Any) -> str:
         out.append(ch)
         i += 1
     return "".join(out)
+
 
 # Small offset so that log10(0 + _EPS) and log10(1 - 0 + _EPS) are finite.
 _EPS = 1e-3
@@ -459,7 +459,9 @@ def _generate_bessel_files(
         if isinstance(elem_config, UpfConfig):
             logger.info(
                 "Solving pseudoatomic problem for %s (rc=%.2f, ri_factor=%.4f)",
-                element, elem_config.rc, elem_config.ri_factor,
+                element,
+                elem_config.rc,
+                elem_config.ri_factor,
             )
             _, bessel = solve_and_export(
                 upf_path=elem_config.upf,
@@ -518,7 +520,7 @@ class PreparedComparisonSets:
     """Minimum number of bands to request from the DFT calculation."""
 
 
-def prepare_comparison_sets(
+def prepare_comparison_sets(  # noqa: C901  # config parsing + file generation; splitting would scatter cohesive logic
     config_path: Path,
     working_dir: Path,
     num_bands: int | None = None,
@@ -593,7 +595,12 @@ def prepare_comparison_sets(
 
         ntb = compute_num_target_bands(config.structure, max_orbitals_per_el)
         min_nbnd = compute_min_nbnd(ntb)
-        logger.info("Comparison: max_orbitals_per_el=%s, ntb=%d, min_nbnd=%d", max_orbitals_per_el, ntb, min_nbnd)
+        logger.info(
+            "Comparison: max_orbitals_per_el=%s, ntb=%d, min_nbnd=%d",
+            max_orbitals_per_el,
+            ntb,
+            min_nbnd,
+        )
 
     return PreparedComparisonSets(config, all_bessel, labels, min_nbnd)
 
@@ -671,7 +678,7 @@ def compute_amn_for_comparison_sets(
             )
 
             proj_dir = next(iter(bessel_files.values())).parent
-            B, labels = symmetry_adapted_rotation(
+            rotation_matrix, labels = symmetry_adapted_rotation(
                 structure_file=prep.config.structure,
                 proj_dir=proj_dir,
                 atoms_dict=atoms_dict,
@@ -680,8 +687,8 @@ def compute_amn_for_comparison_sets(
                 bond_cutoff=bond_cutoff,
                 with_l_padding=True,
             )
-            amn = apply_rotation_to_amn(amn, B)
-            cmn = apply_rotation_to_amn(cmn, B)
+            amn = apply_rotation_to_amn(amn, rotation_matrix)
+            cmn = apply_rotation_to_amn(cmn, rotation_matrix)
             channel_indices = group_indices_by_label(labels)
         results.append(ComparisonSetResult(amn, cmn, channel_indices, prep.labels[i]))
 
@@ -738,7 +745,9 @@ def generate_projectability_comparison(
         channel_proj = compute_projectability_per_channel(r.amn, r.cmn, r.channel_indices)
         total_projs.append(sum(channel_proj.values()))
         labels.append(r.label)
-        otsu_min, otsu_max = suggest_disentanglement_thresholds(r.amn, r.cmn, otsu_bins=config.otsu_bins)
+        otsu_min, otsu_max = suggest_disentanglement_thresholds(
+            r.amn, r.cmn, otsu_bins=config.otsu_bins
+        )
         explicit_min = config.wannier90.get("dis_proj_min")
         effective_min = explicit_min if explicit_min is not None else otsu_min
         thresholds.append((effective_min, otsu_max))
@@ -754,7 +763,7 @@ def generate_projectability_comparison(
     )
 
 
-def plot_projectability_comparison(
+def plot_projectability_comparison(  # noqa: C901  # scatter + KDE + threshold markers compose into a coherent single plot
     band_plot_data: BandPlotData,
     total_projectabilities: list[npt.NDArray[np.float64]],
     labels: list[str],
@@ -821,7 +830,7 @@ def plot_projectability_comparison(
     y_max = 0.0
     kde_max = 0.0
     # Markers for the three Otsu regions: excluded, disentangled, frozen
-    _REGION_MARKERS = ["v", "o", "^"]
+    _region_markers = ["v", "o", "^"]
 
     for i, (total_proj, label) in enumerate(zip(total_projectabilities, labels, strict=True)):
         color = colors[i]
@@ -834,9 +843,9 @@ def plot_projectability_comparison(
         if thresholds is not None:
             t_min, t_max = thresholds[i]
             regions = [
-                (p_flat < t_min, _REGION_MARKERS[0]),
-                ((p_flat >= t_min) & (p_flat <= t_max), _REGION_MARKERS[1]),
-                (p_flat > t_max, _REGION_MARKERS[2]),
+                (p_flat < t_min, _region_markers[0]),
+                ((p_flat >= t_min) & (p_flat <= t_max), _region_markers[1]),
+                (p_flat > t_max, _region_markers[2]),
             ]
             for region_mask, marker in regions:
                 if region_mask.any():
@@ -916,9 +925,7 @@ def plot_projectability_comparison(
             return [circle, rect]
 
     handles = [plt.Line2D([], [], color="none", label=lbl) for lbl in labels]
-    handler_map = {
-        h: _ScatterHistHandler(colors[i]) for i, h in enumerate(handles)
-    }
+    handler_map = {h: _ScatterHistHandler(colors[i]) for i, h in enumerate(handles)}
     ax.legend(
         handles=handles,
         handler_map=handler_map,
@@ -937,11 +944,13 @@ def plot_projectability_comparison(
     ax_hist.set_xlim(left=kde_max * 1e-3, right=kde_max)
     ax_hist.tick_params(labelleft=False, labelbottom=False)
     from matplotlib.ticker import LogLocator
+
     ax_hist.xaxis.set_minor_locator(LogLocator(subs=[2, 4, 6, 8], numticks=12))
 
     fig.subplots_adjust(left=0.15, bottom=0.18, right=0.99, top=0.9)
     if filename is not None:
         from kapaow.plotting import savefig
+
         savefig(fig, filename)
     plt.close(fig)
 
@@ -1067,11 +1076,11 @@ def _build_fat_band_quads(
     channel_p_fine: list[tuple[tuple[float, float, float], npt.NDArray[np.float64]]],
     half_w: float,
 ) -> None:
-    """Build one PolyCollection per segment, compositing all channels into a
-    single RGBA per interval via the Porter-Duff 'over' operator.
+    """Build one PolyCollection per segment using Porter-Duff 'over' compositing.
 
+    Composites all channels into a single RGBA per interval.
     Visually equivalent to stacking one semi-transparent quad per channel, but
-    emits C× fewer polygons.
+    emits fewer polygons per channel.
     """
     disp_transform = ax.transData
     inv_transform = disp_transform.inverted()
@@ -1133,7 +1142,7 @@ def _make_channel_colors(
     n_channels = len(channel_keys)
     return {
         key: mcolors.to_rgb(cmap(x))
-        for key, x in zip(channel_keys, np.linspace(0.0, 1.0, max(n_channels, 2)))
+        for key, x in zip(channel_keys, np.linspace(0.0, 1.0, max(n_channels, 2)), strict=False)
     }
 
 
@@ -1199,6 +1208,7 @@ def add_fat_bands_legend(
     ax: Any,
     channel_colors: dict[tuple[str, Any], tuple[float, float, float]],
 ) -> Any:
+    """Add a fat-bands legend to *ax* and return the Legend object."""
     legend_handles = build_fat_bands_legend_handles(channel_colors)
     return ax.legend(
         handles=legend_handles,
@@ -1315,5 +1325,6 @@ def plot_fat_bands(
     fig.subplots_adjust(left=0.15, bottom=0.15, right=0.99, top=0.925)
     if filename is not None:
         from kapaow.plotting import savefig
+
         savefig(fig, filename)
     plt.close(fig)

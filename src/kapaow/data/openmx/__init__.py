@@ -31,7 +31,6 @@ def fetch_pao(element: str, rc: float) -> Path:
     if not pao.exists():
         available = sorted(p.name for p in PAO_DIR.glob(f"{element}*.pao"))
         raise FileNotFoundError(
-            f"No .pao file found for {element} with rc={rc_str}. "
-            f"Available: {available}"
+            f"No .pao file found for {element} with rc={rc_str}. Available: {available}"
         )
     return pao

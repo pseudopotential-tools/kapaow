@@ -71,7 +71,6 @@ _POS_TOL = 1e-3
 _DEG_TOL = 1e-6
 
 
-
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -135,13 +134,16 @@ class AtomBlock:
 
     @property
     def num_orbitals(self) -> int:
+        """Number of real projector slots for this atom."""
         return len(self.real_local_slots)
 
     @property
     def num_rect_orbitals(self) -> int:
+        """Size of the rectangular (padded) orbital block: (lmax+1)^2 * (nmax+1)."""
         return (self.lmax + 1) ** 2 * (self.nmax + 1)
 
     def local_l_of(self) -> list[int]:
+        """Return the angular-momentum value for each slot in the flat orbital list."""
         return list(self.flat_l_list)
 
 
@@ -251,7 +253,7 @@ def _assemble_flat(
     B = np.eye(n_real, dtype=np.complex128)
     labels: list[OrbitalLabel] = []
     cursor = 0
-    for block, U, labs in zip(blocks, atom_U, atom_labels):
+    for block, U, labs in zip(blocks, atom_U, atom_labels, strict=True):
         n = block.num_orbitals
         U_basis = _complex_to_real_basis_block(block.l_list)
         B[cursor : cursor + n, cursor : cursor + n] = U @ U_basis.conj().T
@@ -269,10 +271,9 @@ def _assemble_padded(
     n_rect = sum(b.num_rect_orbitals for b in blocks)
     B = np.eye(n_rect, dtype=np.complex128)
     labels: list[OrbitalLabel] = [
-        OrbitalLabel(species="", atom_index=-1, kind="padding")
-        for _ in range(n_rect)
+        OrbitalLabel(species="", atom_index=-1, kind="padding") for _ in range(n_rect)
     ]
-    for block, U, labs in zip(blocks, atom_U, atom_labels):
+    for block, U, labs in zip(blocks, atom_U, atom_labels, strict=True):
         global_real = [block.global_base + s for s in block.real_local_slots]
         B[np.ix_(global_real, global_real)] = U
         for local_i, g in enumerate(global_real):
@@ -320,9 +321,7 @@ def group_indices_by_label(
 # ---------------------------------------------------------------------------
 
 
-def _read_species_l_lists(
-    proj_dir: Path, atoms_dict: dict
-) -> dict[str, list[int]]:
+def _read_species_l_lists(proj_dir: Path, atoms_dict: dict) -> dict[str, list[int]]:
     """Return ``{species: [l_0, l_1, ...]}`` by reading each ``.dat`` file.
 
     The list order matches the ``.dat`` file, i.e. the order in which
@@ -334,9 +333,7 @@ def _read_species_l_lists(
     for species in atoms_dict:
         dat_file = proj_dir / f"{species}.dat"
         if not dat_file.exists():
-            raise FileNotFoundError(
-                f"symmetrize: missing projector file {dat_file}"
-            )
+            raise FileNotFoundError(f"symmetrize: missing projector file {dat_file}")
         _, _, l_values, _ = read_wannier90_dat_file(dat_file)
         l_list = list(l_values)
         if any(l > 3 for l in l_list):
@@ -438,9 +435,7 @@ def _match_blocks_to_ase(atoms, blocks: list[AtomBlock]) -> dict[int, int]:
 # ---------------------------------------------------------------------------
 
 
-def _site_symmetry_groups(
-    atoms, atom_map: dict[int, int]
-) -> dict[int, list[np.ndarray]]:
+def _site_symmetry_groups(atoms, atom_map: dict[int, int]) -> dict[int, list[np.ndarray]]:
     """Return per-atom list of Cartesian 3x3 point operations fixing the site."""
     import spglib
 
@@ -453,14 +448,13 @@ def _site_symmetry_groups(
         translations = dataset["translations"]
 
     cell_mat = np.array(atoms.cell)
-    inv_cell = np.linalg.inv(cell_mat)
     scaled = atoms.get_scaled_positions()
 
     out: dict[int, list[np.ndarray]] = {}
     for atom_idx, ase_idx in atom_map.items():
         site = scaled[ase_idx]
         stabilizer: list[np.ndarray] = []
-        for R_frac, t in zip(rotations_frac, translations):
+        for R_frac, t in zip(rotations_frac, translations, strict=True):
             new_pos = R_frac @ site + t
             delta = (new_pos - site + 0.5) % 1.0 - 0.5
             if np.linalg.norm(delta) < _POS_TOL:
@@ -475,7 +469,7 @@ def _site_symmetry_groups(
 
 
 # ---------------------------------------------------------------------------
-# Wigner-D (complex)
+# Wigner-D matrices in the complex-Ylm basis
 # ---------------------------------------------------------------------------
 
 
@@ -506,8 +500,7 @@ def _wigner_small_d(l: int, beta: float) -> np.ndarray:
             s = 0.0
             for k in range(kmin, kmax + 1):
                 num = (-1) ** k * sqrt(
-                    factorial(l + mp) * factorial(l - mp)
-                    * factorial(l + m) * factorial(l - m)
+                    factorial(l + mp) * factorial(l - mp) * factorial(l + m) * factorial(l - m)
                 )
                 den = (
                     factorial(l - mp - k)
@@ -515,9 +508,7 @@ def _wigner_small_d(l: int, beta: float) -> np.ndarray:
                     * factorial(k)
                     * factorial(k + mp - m)
                 )
-                s += num / den * cb2 ** (2 * l + m - mp - 2 * k) * sb2 ** (
-                    2 * k + mp - m
-                )
+                s += num / den * cb2 ** (2 * l + m - mp - 2 * k) * sb2 ** (2 * k + mp - m)
             d[i, j] = s
     return d
 
@@ -541,9 +532,7 @@ def _wigner_d_complex(l: int, R: np.ndarray) -> np.ndarray:
     D = np.zeros((dim, dim), dtype=np.complex128)
     for i, mp in enumerate(range(-l, l + 1)):
         for j, m in enumerate(range(-l, l + 1)):
-            D[i, j] = (
-                np.exp(-1j * mp * alpha) * d[i, j] * np.exp(-1j * m * gamma)
-            )
+            D[i, j] = np.exp(-1j * mp * alpha) * d[i, j] * np.exp(-1j * m * gamma)
     return parity * D
 
 
@@ -571,9 +560,7 @@ def _complex_to_real_ylm_unitary(l: int) -> np.ndarray:
     followed by the sin row.
     """
     if l > 3:
-        raise NotImplementedError(
-            f"_complex_to_real_ylm_unitary: only l <= 3 supported, got l={l}"
-        )
+        raise NotImplementedError(f"_complex_to_real_ylm_unitary: only l <= 3 supported, got l={l}")
     dim = 2 * l + 1
     U = np.zeros((dim, dim), dtype=np.complex128)
     U[0, l] = 1.0
@@ -704,7 +691,7 @@ def _find_bond_neighbours(
     for atom_idx, ase_i in atom_map.items():
         indices, offsets = nl.get_neighbors(ase_i)
         bonds: list[tuple[int, np.ndarray]] = []
-        for j, offset in zip(indices, offsets):
+        for j, offset in zip(indices, offsets, strict=True):
             neighbour_pos = positions[j] + offset @ cell
             vec = neighbour_pos - positions[ase_i]
             d = float(np.linalg.norm(vec))
@@ -731,11 +718,7 @@ def _auto_bond_cutoff(atoms) -> float:
                     for c in (-1, 0, 1):
                         if i == j and a == 0 and b == 0 and c == 0:
                             continue
-                        v = (
-                            positions[j]
-                            - positions[i]
-                            + np.array([a, b, c]) @ cell
-                        )
+                        v = positions[j] - positions[i] + np.array([a, b, c]) @ cell
                         d = float(np.linalg.norm(v))
                         if 1e-6 < d < best:
                             best = d
@@ -760,9 +743,7 @@ def _rotate_atom_block(
     if bonds:
         n_bonds = len(bonds)
         if n_bonds > dim:
-            raise RuntimeError(
-                f"Atom {block.atom_index}: {n_bonds} bonds exceed orbital dim {dim}"
-            )
+            raise RuntimeError(f"Atom {block.atom_index}: {n_bonds} bonds exceed orbital dim {dim}")
         # Determine the smallest l cut-off such that the s..l subspace has
         # enough room for `n_bonds` hybrids. This forces sp^k hybridization
         # to use only s+p when geometrically possible (preferring valence
@@ -780,7 +761,7 @@ def _rotate_atom_block(
                 f"Atom {block.atom_index}: bond directions yield a singular "
                 f"Lowdin overlap (linearly dependent in the orbital basis)"
             )
-        S_inv_half = (evecs * (evals ** -0.5)) @ evecs.conj().T
+        S_inv_half = (evecs * (evals**-0.5)) @ evecs.conj().T
         hybrid_rows_cut = S_inv_half @ M  # (n_bonds, len(hybrid_slots))
 
         # Scatter back into the full atom block: non-hybrid slots get 0.
@@ -815,7 +796,10 @@ def _rotate_atom_block(
 
     # Assemble U: hybrid rows first, then irrep-adapted complement rows.
     U = np.concatenate([hybrid_rows, complement], axis=0)
-    assert U.shape == (dim, dim)
+    if U.shape != (dim, dim):
+        raise RuntimeError(
+            f"Assembled rotation matrix has shape {U.shape}, expected ({dim}, {dim})"
+        )
 
     hybrid_name = _hybrid_name_from_rows(hybrid_rows, block)
     hybrid_labels = [
@@ -855,27 +839,22 @@ def _select_hybrid_slots(block: AtomBlock, n_bonds: int) -> list[int]:
             return sorted(selected)
     if len(selected) < n_bonds:
         raise RuntimeError(
-            f"Atom {block.atom_index}: {n_bonds} bonds exceed total orbital "
-            f"dim {len(selected)}"
+            f"Atom {block.atom_index}: {n_bonds} bonds exceed total orbital dim {len(selected)}"
         )
     return sorted(selected)
 
 
-def _hybrid_l_weights(
-    hybrid_rows: np.ndarray, block: AtomBlock
-) -> dict[int, float]:
+def _hybrid_l_weights(hybrid_rows: np.ndarray, block: AtomBlock) -> dict[int, float]:
     """Sum ``|c|^2`` over the orthonormal hybrid rows for each l channel."""
     weights: dict[int, float] = {}
     for row in hybrid_rows:
         w = np.abs(row) ** 2
-        for slot, amp in zip(block.flat_l_list, w):
+        for slot, amp in zip(block.flat_l_list, w, strict=True):
             weights[slot] = weights.get(slot, 0.0) + float(amp)
     return weights
 
 
-def _hybrid_name_from_rows(
-    hybrid_rows: np.ndarray, block: AtomBlock
-) -> str:
+def _hybrid_name_from_rows(hybrid_rows: np.ndarray, block: AtomBlock) -> str:
     """Derive a textbook hybrid name (``"sp2"``, ``"sp3d2"``, ...) from weights.
 
     The per-l weights are in a rational ratio that identifies the
@@ -900,9 +879,7 @@ def _hybrid_name_from_rows(
     return "".join(parts) if parts else "hybrid"
 
 
-def _label_complement_rows(
-    complement: np.ndarray, block: AtomBlock
-) -> list[OrbitalLabel]:
+def _label_complement_rows(complement: np.ndarray, block: AtomBlock) -> list[OrbitalLabel]:
     """Tag each complement row with its dominant angular character.
 
     Each row of ``complement`` is a unit vector in the atom's orbital
@@ -917,7 +894,7 @@ def _label_complement_rows(
     for row in complement:
         w = np.abs(row) ** 2
         l_weights: dict[int, float] = {}
-        for slot, amp in zip(slot_l, w):
+        for slot, amp in zip(slot_l, w, strict=True):
             l_weights[slot] = l_weights.get(slot, 0.0) + float(amp)
         dominant_l, _ = max(l_weights.items(), key=lambda kv: kv[1])
         if dominant_l == 1:

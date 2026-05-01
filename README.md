@@ -20,7 +20,7 @@
     <a href='https://kapaow.readthedocs.io/en/latest/?badge=latest'>
         <img src='https://readthedocs.org/projects/kapaow/badge/?version=latest' alt='Documentation Status' /></a>
     <a href="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main">
-        <img src="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main/graph/badge.svg" alt="Codecov status" /></a>  
+        <img src="https://codecov.io/gh/pseudopotential-tools/pao-plusplus/branch/main/graph/badge.svg" alt="Codecov status" /></a>
     <a href="https://github.com/cthoyt/cookiecutter-python-package">
         <img alt="Cookiecutter template from @cthoyt" src="https://img.shields.io/badge/Cookiecutter-snekpack-blue" /></a>
     <a href="https://github.com/astral-sh/ruff">

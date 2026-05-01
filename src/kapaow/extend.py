@@ -28,8 +28,13 @@ class BasisExtensionType(enum.Enum):
     @property
     def angular_momentum(self) -> AngularMomentum | None:
         """Return the angular momentum if this is a channel-specific extension."""
-        _map = {"s": AngularMomentum.S, "p": AngularMomentum.P, "d": AngularMomentum.D,
-                "f": AngularMomentum.F, "g": AngularMomentum.G}
+        _map = {
+            "s": AngularMomentum.S,
+            "p": AngularMomentum.P,
+            "d": AngularMomentum.D,
+            "f": AngularMomentum.F,
+            "g": AngularMomentum.G,
+        }
         return _map.get(self.value)
 
 
@@ -129,5 +134,3 @@ class BasisExtensionViaPolarization(BasisExtension):
             increment -= 1
 
         return new_basis
-
-

@@ -130,13 +130,7 @@ def test_read_openmx_pao_orbital_values(pao: OpenMXPAO) -> None:
 def test_read_openmx_pao_real_file() -> None:
     """Read a real OpenMX .pao file from bundled data."""
     real_pao = (
-        Path(__file__).parent.parent
-        / "src"
-        / "kapaow"
-        / "data"
-        / "openmx"
-        / "PAO"
-        / "Si7.0.pao"
+        Path(__file__).parent.parent / "src" / "kapaow" / "data" / "openmx" / "PAO" / "Si7.0.pao"
     )
     if not real_pao.exists():
         pytest.skip("Real PAO file not available")

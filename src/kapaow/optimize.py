@@ -4,7 +4,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import ase.io
 import matplotlib.pyplot as plt
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -143,15 +142,12 @@ def optimize(
 
     # Build orbitals-per-element map: target element uses the (possibly extended)
     # count, all others use the default (unconfined) basis from their UPF.
-    orbitals_per_el = {
-        sym: orbitals_per_atom(upf) for sym, upf in upf_by_element.items()
-    }
+    orbitals_per_el = {sym: orbitals_per_atom(upf) for sym, upf in upf_by_element.items()}
     orbitals_per_el[element] = target_orbitals
 
     # Compute per-material num_target_bands before running QE
     num_target_bands_per_material: dict[str, int] = {
-        sf.stem: compute_num_target_bands(sf, orbitals_per_el)
-        for sf in structure_file_list
+        sf.stem: compute_num_target_bands(sf, orbitals_per_el) for sf in structure_file_list
     }
 
     material_atoms, qe_results, _bands_results = _run_qe_for_materials(
@@ -172,7 +168,9 @@ def optimize(
 
         # Rescaling
         rc = DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * rc
-        ri_factor = DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * ri_factor
+        ri_factor = (
+            DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * ri_factor
+        )
 
         dat_filename = f"{element}_rc_{rc:.10f}_ri-factor_{ri_factor:.10f}.dat"
 
@@ -315,7 +313,9 @@ def _plot(
         ]
     )
     x_grid_rescaled = DEFAULT_RC_MIN + (DEFAULT_RC_MAX - DEFAULT_RC_MIN) * x_grid
-    y_grid_rescaled = DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * y_grid
+    y_grid_rescaled = (
+        DEFAULT_RI_FACTOR_MIN + (DEFAULT_RI_FACTOR_MAX - DEFAULT_RI_FACTOR_MIN) * y_grid
+    )
 
     mu, _ = optimizer._gp.predict(grid, return_std=True)
     z_grid = 1 - mu.reshape(x_grid.shape)  # 1 - F for log scale
@@ -368,6 +368,7 @@ def _plot(
 
     if filename is not None:
         from kapaow.plotting import savefig
+
         savefig(plt, filename)
         plt.close(fig)
     else:

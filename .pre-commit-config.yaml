@@ -1,14 +1,22 @@
 # See https://pre-commit.com for more information
 # Install the git hook via: ``pre-commit install``
 # Run on all files: ``pre-commit run --all-files``
+# Bundled data (UPF / .pao / structure files) and example inputs are
+# kept verbatim; whitespace fixers must not rewrite them.
+exclude: |
+  (?x)^(
+    src/kapaow/data/|
+    examples/|
+    tests/data/|
+    tests/.*/fixtures/
+  )
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^tests/.*/fixtures/
       - id: end-of-file-fixer
-        exclude: ^tests/.*/fixtures/
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict

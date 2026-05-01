@@ -79,7 +79,6 @@ def _find_nscf_calc_dir(dump_dir: Path) -> Path:
     return matches[0]
 
 
-
 def run_qe_workflow(
     structure_file: Path,
     working_dir: Path,
@@ -98,7 +97,6 @@ def run_qe_workflow(
     Returns:
         QEWorkflowResult with paths to NSCF outputs.
     """
-
     from aiida import orm
     from aiida_koopmans.workgraphs.pw import PwScfNscfTask
     from koopmans.aiida.dumping import dump_workgraph
@@ -211,7 +209,7 @@ def _find_bands_calc_dir(dump_dir: Path) -> Path:
     return matches[0]
 
 
-def _build_kpoints_from_path(
+def _build_kpoints_from_path(  # noqa: C901  # k-path construction requires handling PBC, segments, labels, and validation together
     structure: Any,
     kpath: list[list[str]],
     reference_distance: float = 0.025,
@@ -253,8 +251,7 @@ def _build_kpoints_from_path(
     missing = all_labels - set(point_coords.keys())
     if missing:
         raise ValueError(
-            f"Unknown k-point labels: {missing}. "
-            f"Available labels: {sorted(point_coords.keys())}"
+            f"Unknown k-point labels: {missing}. Available labels: {sorted(point_coords.keys())}"
         )
 
     # For lower-dimensional structures, check that every *requested* label
@@ -366,7 +363,6 @@ def run_bands_workflow(
     Returns:
         BandsWorkflowResult with path to the bands calculation dump.
     """
-
     from aiida import orm
     from aiida_koopmans.workgraphs.pw import PwBandsTaskViaBuilder
     from koopmans.aiida.dumping import dump_workgraph
@@ -538,7 +534,7 @@ def _build_projector_rotation(
     from kapaow.symmetrize import symmetry_adapted_rotation
 
     atoms_dict, lattice_vectors = build_atoms_dict_from_structure(structure_file)
-    B, labels = symmetry_adapted_rotation(
+    rotation_matrix, labels = symmetry_adapted_rotation(
         structure_file=structure_file,
         proj_dir=proj_dir,
         atoms_dict=atoms_dict,
@@ -553,7 +549,7 @@ def _build_projector_rotation(
         sum(1 for lab in labels if lab.kind == "irrep"),
     )
     rotation = _orm.ArrayData()
-    rotation.set_array("B", B)
+    rotation.set_array("B", rotation_matrix)
     return rotation
 
 
@@ -641,11 +637,15 @@ def run_wannierize_workflow(
 
         bands_kpoints_node = _orm.load_node(bands_kpoints_pk)
 
-    projector_rotation = _build_projector_rotation(
-        structure_file=structure_file,
-        proj_dir=proj_dir,
-        bond_cutoff=bond_cutoff,
-    ) if symmetrize else None
+    projector_rotation = (
+        _build_projector_rotation(
+            structure_file=structure_file,
+            proj_dir=proj_dir,
+            bond_cutoff=bond_cutoff,
+        )
+        if symmetrize
+        else None
+    )
 
     overrides: dict[str, Any] = {
         "wannier90": {
@@ -778,11 +778,15 @@ def run_wannierize_optimize_workflow(
         },
     }
 
-    projector_rotation = _build_projector_rotation(
-        structure_file=structure_file,
-        proj_dir=proj_dir,
-        bond_cutoff=bond_cutoff,
-    ) if symmetrize else None
+    projector_rotation = (
+        _build_projector_rotation(
+            structure_file=structure_file,
+            proj_dir=proj_dir,
+            bond_cutoff=bond_cutoff,
+        )
+        if symmetrize
+        else None
+    )
 
     wg = Wannier90OptimizeTaskViaBuilder.build(
         codes=codes,

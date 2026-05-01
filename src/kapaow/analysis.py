@@ -127,6 +127,7 @@ def plot_cumulative_below_threshold(
 
     if filename is not None:
         from kapaow.plotting import savefig
+
         savefig(plt, filename)
         plt.close(fig)
     else:

@@ -2,23 +2,12 @@
 
 from __future__ import annotations
 
+import enum
 import tomllib
 from pathlib import Path
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
-
-import enum
-
-
-class OptimizeDisThresholds(enum.Enum):
-    """Strategy for choosing dis_proj_min / dis_proj_max."""
-
-    NONE = "none"
-    BAYESIAN = "bayesian"
-    GRID = "grid"
-    OTSU = "otsu"
-
 
 from kapaow.extend import (
     BasisExtension,
@@ -29,6 +18,15 @@ from kapaow.extend import (
 )
 from kapaow.pydantic import BaseModel
 from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX
+
+
+class OptimizeDisThresholds(enum.Enum):
+    """Strategy for choosing dis_proj_min / dis_proj_max."""
+
+    NONE = "none"
+    BAYESIAN = "bayesian"
+    GRID = "grid"
+    OTSU = "otsu"
 
 
 class UpfConfig(BaseModel):
@@ -83,7 +81,7 @@ class PaoConfig(BaseModel):
 
 
 ElementConfig = Annotated[
-    Union[UpfConfig, PaoConfig],
+    UpfConfig | PaoConfig,
     Field(discriminator=None),
 ]
 
@@ -91,11 +89,16 @@ ElementConfig = Annotated[
 # ---- Shared fields for all workflow TOML configs ----
 
 _NON_ELEMENT_KEYS = {
-    "structure", "num_bands", "kpath", "periodic",
+    "structure",
+    "num_bands",
+    "kpath",
+    "periodic",
     "dis_froz_max_wrt_cbm",
-    "optimize_dis_thresholds", "otsu_bins",
+    "optimize_dis_thresholds",
+    "otsu_bins",
     "wannier90",
-    "symmetrize", "bond_cutoff",
+    "symmetrize",
+    "bond_cutoff",
 }
 
 

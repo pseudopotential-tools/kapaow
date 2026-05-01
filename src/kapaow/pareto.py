@@ -521,6 +521,7 @@ def plot_pareto(
 
     if filename is not None:
         from kapaow.plotting import savefig
+
         savefig(plt, filename)
         plt.close(fig)
     else:
