@@ -134,3 +134,44 @@ class BasisExtensionViaPolarization(BasisExtension):
             increment -= 1
 
         return new_basis
+
+
+def parse_extension(add: tuple[str, ...]) -> BasisExtension | None:
+    """Build the basis extension implied by a tuple of ``--add`` flags.
+
+    The CLI exposes a repeatable ``--add`` option whose values are the
+    string forms of :class:`BasisExtensionType`. Each repetition counts
+    as one increment; mixing different kinds in a single call is not
+    supported.
+
+    Parameters
+    ----------
+    add
+        Tuple of flag strings (e.g. ``("subshell", "subshell")`` or
+        ``("p",)``). An empty tuple returns ``None``.
+
+    Returns
+    -------
+    BasisExtension | None
+        The corresponding extension, or ``None`` if *add* is empty.
+
+    Raises
+    ------
+    ValueError
+        If multiple distinct kinds are mixed.
+    """
+    if not add:
+        return None
+    kinds = set(add)
+    if len(kinds) > 1:
+        raise ValueError("Cannot mix different --add types in the same call.")
+    kind = BasisExtensionType(kinds.pop())
+    count = len(add)
+    if kind == BasisExtensionType.SUBSHELL:
+        return BasisExtensionViaAddition(increment=count)
+    if kind == BasisExtensionType.POLARIZATION:
+        return BasisExtensionViaPolarization(increment=count)
+    channel = kind.angular_momentum
+    if channel is not None:
+        return BasisExtensionViaChannel(channel=channel, increment=count)
+    return None

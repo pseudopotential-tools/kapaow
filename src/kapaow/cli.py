@@ -28,8 +28,8 @@ from kapaow.extend import (
     BasisExtension,
     BasisExtensionType,
     BasisExtensionViaAddition,
-    BasisExtensionViaChannel,
     BasisExtensionViaPolarization,
+    parse_extension,
 )
 from kapaow.periodic_table import plot_periodic_table
 from kapaow.plotting import plot_wannier90_dat_files
@@ -66,26 +66,15 @@ def symmetrize_option(func: Callable) -> click.Command:
 
 
 def get_extension(add: tuple[str, ...]) -> BasisExtension | None:
-    """Convert the add flags into the corresponding extension object(s).
+    """Click-aware wrapper around :func:`kapaow.extend.parse_extension`.
 
-    Counts occurrences of each type and creates extensions with the
-    appropriate increment.  Only one type may be used at a time.
+    Translates the parser's :class:`ValueError` into a
+    :class:`click.UsageError` so the CLI prints the standard usage hint.
     """
-    if not add:
-        return None
-    kinds = set(add)
-    if len(kinds) > 1:
-        raise click.UsageError("Cannot mix different --add types in the same call.")
-    kind = BasisExtensionType(kinds.pop())
-    count = len(add)
-    if kind == BasisExtensionType.SUBSHELL:
-        return BasisExtensionViaAddition(increment=count)
-    if kind == BasisExtensionType.POLARIZATION:
-        return BasisExtensionViaPolarization(increment=count)
-    channel = kind.angular_momentum
-    if channel is not None:
-        return BasisExtensionViaChannel(channel=channel, increment=count)
-    return None
+    try:
+        return parse_extension(add)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
 
 
 def _describe_extension(upf: Path, extension: BasisExtension) -> str:

@@ -16,7 +16,7 @@ from tqdm import tqdm
 from upf_tools import UPFDict
 
 from kapaow.basis import AtomicBasis
-from kapaow.extend import BasisExtension, BasisExtensionViaAddition
+from kapaow.extend import BasisExtension, BasisExtensionViaAddition, parse_extension
 from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)
@@ -387,8 +387,6 @@ def _collect_rc_data(
     rc_directory: Path,
 ) -> tuple[list, dict[str, str]]:
     """Scan rc-search JSON files and return plot rows and basis annotations."""
-    from kapaow.cli import get_extension
-
     plot_rows: list = []
     annotations: dict[str, str] = {}
     for json_file in sorted(rc_directory.glob("*.json")):
@@ -400,7 +398,7 @@ def _collect_rc_data(
             upf_path = Path(raw["upf_path"])
             if upf_path.exists():
                 add_spec = tuple(raw.get("add", ()) or ())
-                extension = get_extension(add_spec) if add_spec else None
+                extension = parse_extension(add_spec) if add_spec else None
                 annotations[element] = _basis_annotation(upf_path, extension=extension)
 
         rc_value = raw.get("rc")
