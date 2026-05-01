@@ -49,27 +49,30 @@ license-files = [
 
 requires-python = ">=3.12"
 dependencies = [
-    "more_itertools", # missing from itertools in stdlib
-    "tqdm", # progress bars
-    "click",
-    "more_click",
-    "typing-extensions",
-    "upf-tools",
-    "ipdb",
-    "atomic-femdvr",
-    "koopmans",
-    "aiida-koopmans",
-    "ase-koopmans",
-    "bayesian-optimization>=3.1.0",
-    "periodic_trends @ git+https://github.com/Andrew-S-Rosen/periodic_trends.git",
-    "qe-wavefunctions",
+    # Numerical / scientific stack
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "ase",
+    "h5py",
     "pandas>=2.3.3",
+    "seaborn>=0.13.2",
+    "Pillow",
+    # Pseudoatomic solver + UPF parsing
+    "atomic-femdvr",
+    "upf-tools",
+    # Periodic table / Bokeh plotting + SVG/PNG/PDF export
+    "bokeh",
+    "periodic_trends @ git+https://github.com/Andrew-S-Rosen/periodic_trends.git",
     "selenium>=4.38.0",
     "chromedriver-binary>=144.0.7523.0.0",
-    "seaborn>=0.13.2",
     "cairosvg>=2.8.2",
-    "aiida-wannier90",
-    "scikit-image",
+    # Validation + CLI
+    "pydantic",
+    "tqdm",
+    "click",
+    "ipdb",
+    "typing-extensions",
 ]
 
 # see https://peps.python.org/pep-0735/ and https://docs.astral.sh/uv/concepts/dependencies/#dependency-groups
@@ -133,7 +136,20 @@ release = [
 ]
 
 # see https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#dependencies-optional-dependencies
-# [project.optional-dependencies]
+[project.optional-dependencies]
+# Pull in the AiiDA + Quantum ESPRESSO + Wannier90 stack used by
+# kapaow._experimental (benchmark, fat bands, gauge analysis, Bayesian
+# projectability optimisation, etc.). Required only if you want any of
+# the experimental subcommands or the corresponding Python entry points.
+experimental = [
+    "aiida-koopmans",
+    "aiida-wannier90",
+    "ase-koopmans",
+    "bayesian-optimization>=3.1.0",
+    "koopmans",
+    "qe-wavefunctions",
+    "scikit-image",
+]
 
 
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#urls
