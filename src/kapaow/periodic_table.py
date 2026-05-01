@@ -15,9 +15,9 @@ from periodic_trends import plotter
 from tqdm import tqdm
 from upf_tools import UPFDict
 
+from kapaow._experimental.optimize import create_optimizer
 from kapaow.basis import AtomicBasis
 from kapaow.extend import BasisExtension, BasisExtensionViaAddition
-from kapaow.optimize import create_optimizer
 from kapaow.plotting import COLORMAP, REVTEX_DOUBLE_COLUMN_WIDTH
 
 logger = logging.getLogger(__name__)

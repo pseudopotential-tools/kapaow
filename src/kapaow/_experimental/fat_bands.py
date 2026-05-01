@@ -451,7 +451,7 @@ def _generate_bessel_files(
 
     Shared helper for fat-bands and projectability comparison.
     """
-    from kapaow.config import PaoConfig, UpfConfig
+    from kapaow._experimental.config import PaoConfig, UpfConfig
     from kapaow.solve import solve_and_export
 
     bessel_files: dict[str, Path] = {}
@@ -541,12 +541,12 @@ def prepare_comparison_sets(  # noqa: C901  # config parsing + file generation; 
     num_bands
         Manual override for the number of bands.
     """
-    from kapaow.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
-    from kapaow.config import (
+    from kapaow._experimental.config import (
         PaoConfig,
         ProjectabilityComparisonConfig,
         UpfConfig,
     )
+    from kapaow.bands import compute_min_nbnd, compute_num_target_bands, orbitals_per_atom
 
     config = ProjectabilityComparisonConfig.from_toml(config_path)
     num_sets = config.num_sets
@@ -726,8 +726,8 @@ def generate_projectability_comparison(
         Manual override for the number of bands. Takes precedence over both
         the TOML ``num_bands`` field and the automatic calculation.
     """
+    from kapaow._experimental.config import ProjectabilityComparisonConfig
     from kapaow._experimental.projectability import suggest_disentanglement_thresholds
-    from kapaow.config import ProjectabilityComparisonConfig
 
     config = ProjectabilityComparisonConfig.from_toml(config_path)
 

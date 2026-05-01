@@ -32,8 +32,6 @@ from kapaow.extend import (
     BasisExtensionViaChannel,
     BasisExtensionViaPolarization,
 )
-from kapaow.optimize import optimize as internal_optimize
-from kapaow.optimize import plot_optimizer
 from kapaow.periodic_table import plot_periodic_table
 from kapaow.plotting import plot_wannier90_dat_files
 from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RI_FACTOR_MAX, solve_and_export
@@ -287,6 +285,8 @@ def optimize() -> None:
 @add_option
 def projectability(upf: Path, add: tuple[str, ...]) -> None:
     """Optimize PAOs to maximise their projectability via Bayesian optimization."""
+    from kapaow._experimental.optimize import optimize as internal_optimize
+
     extension = get_extension(add)
     internal_optimize(upf, extension)
 
@@ -479,15 +479,15 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     Example:
         kapaow benchmark benchmark.toml
     """
-    from kapaow._experimental.workflows import run_bands_workflow
-    from kapaow.benchmark import (
+    from kapaow._experimental.benchmark import (
         format_benchmark_table,
         generate_dat_files,
         plot_bands_comparison,
         plot_convergence,
         run_benchmark,
     )
-    from kapaow.config import BenchmarkConfig, OptimizeDisThresholds
+    from kapaow._experimental.config import BenchmarkConfig, OptimizeDisThresholds
+    from kapaow._experimental.workflows import run_bands_workflow
 
     cfg = BenchmarkConfig.from_toml(config_path)
     structure = cfg.structure
@@ -576,12 +576,12 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
             num_kpoints=num_kpoints,
         )
         if effective_symmetrize:
+            from kapaow._experimental.benchmark import _prepare_proj_dir
             from kapaow._experimental.symmetrize import (
                 apply_rotation_to_amn,
                 group_indices_by_label,
                 symmetry_adapted_rotation,
             )
-            from kapaow.benchmark import _prepare_proj_dir
 
             # Stage the single combination's .dat files as ``{element}.dat``
             # under working_dir/fat_bands_projectors, matching the layout
@@ -629,7 +629,10 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
 
     # If optimization was used, plot the trajectory
     if isinstance(dis_proj_max_value, str) and dis_proj_max_value == "optimize":
-        from kapaow.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+        from kapaow._experimental.benchmark import (
+            extract_optimize_trajectory,
+            plot_optimize_trajectory,
+        )
 
         # Re-load the process node from the most recent optimize run
         # (stored as the last workgraph in working_dir/run_000/wannierize_optimize)
@@ -820,6 +823,8 @@ def paos(dat: list[Path], output: Path) -> None:
 @with_output_option(default_format=".png")
 def projectability_optimization(log_file: Path, output: Path | None) -> None:
     """Plot the results of a projectability optimization."""
+    from kapaow._experimental.optimize import plot_optimizer
+
     plot_optimizer(log_file, filename=output)
 
 
@@ -1069,7 +1074,7 @@ def unshifted_vs_rc(grid_directory: Path, threshold: float, output: Path) -> Non
 
     GRID_DIRECTORY is a directory containing per-element grid JSON files.
     """
-    from kapaow.analysis import plot_cumulative_below_threshold
+    from kapaow._experimental.analysis import plot_cumulative_below_threshold
 
     plot_cumulative_below_threshold(
         grid_directory,
@@ -1090,7 +1095,7 @@ def optimize_trajectory(pk: int, output: Path) -> None:
     """
     import logging
 
-    from kapaow.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
+    from kapaow._experimental.benchmark import extract_optimize_trajectory, plot_optimize_trajectory
 
     logging.basicConfig(level=logging.INFO)
 

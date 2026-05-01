@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
-from kapaow.config import BenchmarkConfig, PaoConfig, UpfConfig
+from kapaow._experimental.config import BenchmarkConfig, PaoConfig, UpfConfig
 
 logger = logging.getLogger(__name__)
 
