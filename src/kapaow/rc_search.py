@@ -147,10 +147,18 @@ def dump_rc_search_json(
     upf_path: Path | None = None,
     add: tuple[str, ...] = (),
 ) -> None:
-    """Write the rc search result and all probed points to a JSON file."""
+    """Write the rc search result and all probed points to a JSON file.
+
+    The output also records ``kapaow_version`` (the running CLI's
+    package version) so downstream tooling can stamp provenance from
+    the JSON rather than guessing from its own ``importlib.metadata``.
+    """
+    from importlib.metadata import version as _pkg_version
+
     output: dict = {}
     if upf_path is not None:
         output["upf_path"] = str(upf_path)
+    output["kapaow_version"] = _pkg_version("kapaow")
     output["ri_factor"] = ri_factor
     output["threshold"] = threshold
     output["add"] = list(add)

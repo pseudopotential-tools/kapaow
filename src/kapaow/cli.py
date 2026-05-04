@@ -487,9 +487,12 @@ def rc(
 @click.option(
     "--ri-factor",
     type=float,
-    default=DEFAULT_RI_FACTOR_MAX,
-    show_default=True,
-    help="Inner radius factor for the confinement potential.",
+    default=None,
+    help=(
+        "Inner radius factor for the confinement potential. If omitted, "
+        "read from --rc-search-json (when given), else falls back to "
+        "kapaow's DEFAULT_RI_FACTOR_MAX."
+    ),
 )
 @click.option(
     "--max-rank",
@@ -509,7 +512,7 @@ def emit_ranks_cmd(
     upf: Path,
     rc: float | None,
     rc_search_json: Path | None,
-    ri_factor: float,
+    ri_factor: float | None,
     max_rank: int | None,
     output_dir: Path,
 ) -> None:

@@ -110,12 +110,38 @@ def _build_rank_k_basis(
     return PseudoatomicBasis(number_of_orbitals=counts)
 
 
+def _resolve_rc_and_ri_factor(
+    rc: float | None,
+    rc_search_json: Path | None,
+    ri_factor: float | None,
+) -> tuple[float, float]:
+    """Return ``(rc, ri_factor)`` for :func:`emit_ranks`, validating inputs.
+
+    Exactly one of ``rc`` and ``rc_search_json`` must be given. When
+    ``rc_search_json`` is used and the caller did not override
+    ``ri_factor``, the JSON's value is inherited so the rc-search JSON
+    is the single source of truth for confinement geometry.
+    """
+    if (rc is None) == (rc_search_json is None):
+        raise ValueError("Provide exactly one of rc or rc_search_json.")
+    if rc_search_json is not None:
+        data = json.loads(rc_search_json.read_text(encoding="utf-8"))
+        rc = float(data["rc"])
+        if ri_factor is None:
+            ri_factor = float(data["ri_factor"])
+    if ri_factor is None:
+        ri_factor = DEFAULT_RI_FACTOR_MAX
+    if rc is None:
+        raise AssertionError("rc must be set at this point")  # unreachable
+    return rc, ri_factor
+
+
 def emit_ranks(
     upf_path: Path,
     *,
     rc: float | None = None,
     rc_search_json: Path | None = None,
-    ri_factor: float = DEFAULT_RI_FACTOR_MAX,
+    ri_factor: float | None = None,
     max_rank: int | None = None,
     output_dir: Path = Path("."),
 ) -> list[RankRecord]:
@@ -158,14 +184,7 @@ def emit_ranks(
     ValueError
         If not exactly one of *rc* / *rc_search_json* is provided.
     """
-    # --- validate inputs ---
-    if (rc is None) == (rc_search_json is None):
-        raise ValueError("Provide exactly one of rc or rc_search_json.")
-    if rc_search_json is not None:
-        data = json.loads(rc_search_json.read_text(encoding="utf-8"))
-        rc = float(data["rc"])
-    if rc is None:
-        raise AssertionError("rc must be set at this point")  # unreachable, satisfies type-checker
+    rc, ri_factor = _resolve_rc_and_ri_factor(rc, rc_search_json, ri_factor)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = upf_path.stem
@@ -240,9 +259,12 @@ def emit_ranks(
             logger.info("  rank %d -> %s, %s", k, dat_name.name, upf_name.name)
 
     # --- write index JSON ---
+    from importlib.metadata import version as _pkg_version
+
     ranks_json_path = output_dir / f"{stem}_ranks.json"
     index: dict = {
         "upf": str(upf_path),
+        "kapaow_version": _pkg_version("kapaow"),
         "rc": rc,
         "ri_factor": ri_factor,
         "ranks": [],
