@@ -770,7 +770,7 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
 
 
 @main.command()
-@click.argument("element_or_upf", type=str)
+@click.argument("upf", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--frames-per-segment",
     type=int,
@@ -816,7 +816,7 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     help="Save the output to this file.",
 )
 def animate(
-    element_or_upf: str,
+    upf: Path,
     frames_per_segment: int,
     max_r_mid: float,
     min_r_mid: float,
@@ -826,20 +826,8 @@ def animate(
     output: Path,
     add: tuple[str, ...],
 ) -> None:
-    """Generate a GIF showing PAOs under varying confinement.
-
-    ELEMENT_OR_UPF is either an element symbol (e.g. Li) to use the bundled
-    PseudoDojo pseudopotential, or a path to a UPF file.
-    """
+    """Generate a GIF showing PAOs under varying confinement."""
     from kapaow.animate import generate_animation
-
-    upf_candidate = Path(element_or_upf)
-    if upf_candidate.is_file():
-        upf_path = upf_candidate
-    else:
-        from kapaow.data.pseudodojo import fetch_pseudopotential
-
-        upf_path = fetch_pseudopotential(element_or_upf)
 
     extension = get_extension(add)
 
@@ -847,7 +835,7 @@ def animate(
         click.echo(f"  Frame {i + 1}/{total}: rc={rc:.2f}, ri_factor={ri_factor:.2f}")
 
     generate_animation(
-        upf_path=upf_path,
+        upf_path=upf,
         extension=extension,
         frames_per_segment=frames_per_segment,
         max_r_mid=max_r_mid,

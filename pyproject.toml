@@ -336,6 +336,25 @@ signature-mutators = [
     "click.decorators.confirmation_option"
 ]
 
+# Vendored reference data used by the experimental analysis tools is
+# tracked in git for the repo checkout but excluded from the published
+# sdist/wheel so `pip install kapaow` stays small.
+[tool.uv.build-backend]
+source-exclude = [
+    "src/kapaow/data/openmx/PAO/**",
+    "src/kapaow/data/openmx/VPS/**",
+    "src/kapaow/data/sssp/structures/gs/**",
+    "src/kapaow/data/sssp/structures/oxides/**",
+    "src/kapaow/data/sssp/structures/unaries/**",
+]
+wheel-exclude = [
+    "kapaow/data/openmx/PAO/**",
+    "kapaow/data/openmx/VPS/**",
+    "kapaow/data/sssp/structures/gs/**",
+    "kapaow/data/sssp/structures/oxides/**",
+    "kapaow/data/sssp/structures/unaries/**",
+]
+
 [tool.uv.sources]
 qe-wavefunctions = { path = "../schueler/QE-wavefunctions", editable = true }
 ase-koopmans = { path = "../ase_koopmans" }
