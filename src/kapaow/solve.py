@@ -114,17 +114,18 @@ def _write_upf_for_basis(
 
     The source UPF's mesh and every block other than ``PP_PSWFC`` and
     ``header.number_of_wfc`` is preserved verbatim. Each new ``PP_CHI``
-    is built by reading the radial wavefunction from the latest
-    ``*_qe.dat`` in *working_dir* and cubic-spline-interpolating it onto
-    the source UPF's ``PP_MESH/PP_R`` grid; values outside the femdvr
-    range are zero-padded.
+    is built by reading the FEDVR-resolved wavefunctions from
+    ``{working_dir}/*_wfc.h5`` and evaluating them on the source UPF's
+    ``PP_MESH/PP_R`` grid via :meth:`FEDVR_Basis.interpolate` — exact
+    Legendre-spectral evaluation within each finite element. The solve
+    must therefore have been run with ``output_wfc_hdf5=True``.
 
     Pseudo-energies are converted from Hartree (femdvr) to Rydberg (UPF).
 
     Parameters
     ----------
     working_dir
-        Directory holding the femdvr ``*_qe.dat`` output.
+        Directory holding the femdvr ``*_wfc.h5`` output.
     src_upf_path
         Source UPF file, used as the template.
     dst_upf_path
@@ -137,25 +138,22 @@ def _write_upf_for_basis(
         :func:`read_femdvr_eigenvalues`. Used to assign each kept
         orbital its ``pseudo_energy``.
     """
-    from scipy.interpolate import CubicSpline
+    from atomic_femdvr.femdvr import FEDVR_Basis
 
     upf = UPFDict.from_upf(src_upf_path)
     upf_r = np.asarray(upf["mesh"]["r"], dtype=float)
 
-    qe_dat_file = max(
-        working_dir.glob("*_qe.dat"),
-        key=lambda f: f.stat().st_mtime,
-    )
-    _, fem_r_list, fem_l_values, fem_orbitals = read_wannier90_dat_file(qe_dat_file)
-    fem_r = np.asarray(fem_r_list, dtype=float)
-
-    # Map (l, n_radial) -> femdvr-orbital index in the qe.dat file.
-    fem_orbital_index: dict[tuple[int, int], int] = {}
-    fem_count_per_l: dict[int, int] = {}
-    for i, l in enumerate(fem_l_values):
-        n_r = fem_count_per_l.get(l, 0)
-        fem_orbital_index[(l, n_r)] = i
-        fem_count_per_l[l] = n_r + 1
+    wfc_files = sorted(working_dir.glob("*_wfc.h5"), key=lambda f: f.stat().st_mtime)
+    if not wfc_files:
+        raise FileNotFoundError(
+            f"No *_wfc.h5 found in {working_dir}; rerun the solve with output_wfc_hdf5=True."
+        )
+    with h5py.File(wfc_files[-1], "r") as f:
+        ne = int(f.attrs["ne"])
+        ng = int(f.attrs["ng"])
+        xp = np.array(f["xp"][:])
+        phi = np.array(f["wf"][:])  # shape [lmax+1, nmax+1, ne*ng+1]
+    basis = FEDVR_Basis(ne, ng, xp.tolist(), build_derivatives=False)
 
     # Map (l, n_radial) -> femdvr eigenvalue (Hartree).
     energy_lookup = {(o.l.value, o.n_radial): o.energy for o in eigenvalues}
@@ -178,15 +176,14 @@ def _write_upf_for_basis(
         n_radial = seen_per_l.get(l_int, 0)
         seen_per_l[l_int] = n_radial + 1
 
-        if (l_int, n_radial) not in fem_orbital_index:
+        if l_int >= phi.shape[0] or n_radial >= phi.shape[1]:
             raise ValueError(
                 f"femdvr output is missing orbital (l={l_int}, n_radial={n_radial}); "
-                f"available: {sorted(fem_orbital_index.keys())}"
+                f"available shape (lmax+1, nmax+1) = {phi.shape[:2]}"
             )
-        wf = np.asarray(fem_orbitals[fem_orbital_index[(l_int, n_radial)]], dtype=float)
-        spline = CubicSpline(fem_r, wf, extrapolate=False)
-        wf_on_upf = spline(upf_r)
-        wf_on_upf = np.where(np.isnan(wf_on_upf), 0.0, wf_on_upf)
+        # phi[l, n, :] is u(r) = r * R(r) on FEDVR points; UPF chi blocks
+        # store u(r) directly, so no /r is needed here.
+        wf_on_upf = basis.interpolate(phi[l_int, n_radial, :], upf_r)
 
         energy_ha = energy_lookup.get((l_int, n_radial), 0.0)
         pseudo_energy_ry = 2.0 * energy_ha
@@ -263,6 +260,7 @@ def solve_pseudoatomic_problem(
     dat_filename: Path | str | None = None,
     atomic_femdvr_config: PseudoAtomicInput | None = None,
     output_wfc_bessel: bool = True,
+    output_wfc_hdf5: bool = False,
 ) -> PseudoAtomicResult:
     """Solve the pseudoatomic problem for a given UPF file with a soft confinement potential.
 
@@ -296,6 +294,7 @@ def solve_pseudoatomic_problem(
     atomic_femdvr_config.confinement.ri_factor = ri_factor
     atomic_femdvr_config.output.output_wfc_qe = True
     atomic_femdvr_config.output.output_wfc_bessel = output_wfc_bessel
+    atomic_femdvr_config.output.output_wfc_hdf5 = output_wfc_hdf5
 
     # Remove any pre-existing hdf5 files in the working dir so a stale
     # density/potential file from a previous run isn't picked up.

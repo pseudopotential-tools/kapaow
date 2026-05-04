@@ -197,6 +197,7 @@ def emit_ranks(
             working_dir=scratch,
             dat_filename=trial_dat,
             output_wfc_bessel=False,
+            output_wfc_hdf5=True,
         )
 
         # --- enumerate all eigenvalues from the solve ---
