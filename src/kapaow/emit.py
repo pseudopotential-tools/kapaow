@@ -14,6 +14,7 @@ from kapaow.solve import (
     DEFAULT_RI_FACTOR_MAX,
     OrbitalEnergy,
     _write_dat_for_basis,
+    _write_upf_for_basis,
     read_femdvr_eigenvalues,
     solve_pseudoatomic_problem,
 )
@@ -40,12 +41,15 @@ class RankRecord(BaseModel):
         Augmentation rank K (0 = baseline only).
     dat_path
         Path to the emitted ``.dat`` file.
+    upf_path
+        Path to the emitted augmented ``.upf`` file.
     added_orbital
         The orbital added at this rank, or ``None`` for rank 0.
     """
 
     rank: int
     dat_path: Path
+    upf_path: Path
     added_orbital: OrbitalEnergy | None
 
 
@@ -219,16 +223,20 @@ def emit_ranks(
             max_rank,
         )
 
-        # --- emit one dat file per rank, sourced from the scratch *_qe.dat ---
+        # --- emit one (.dat, .upf) pair per rank, sourced from the scratch *_qe.dat ---
         records: list[RankRecord] = []
         for k in range(len(extras) + 1):
             rank_basis = _build_rank_k_basis(baseline_pseudo, extras, k)
             dat_name = output_dir / f"{stem}_rank{k}.dat"
+            upf_name = output_dir / f"{stem}_rank{k}.upf"
             _write_dat_for_basis(scratch, dat_name, rank_basis)
+            _write_upf_for_basis(scratch, upf_path, upf_name, rank_basis, all_orbitals)
 
             added: OrbitalEnergy | None = extras[k - 1] if k > 0 else None
-            records.append(RankRecord(rank=k, dat_path=dat_name, added_orbital=added))
-            logger.info("  rank %d -> %s", k, dat_name.name)
+            records.append(
+                RankRecord(rank=k, dat_path=dat_name, upf_path=upf_name, added_orbital=added)
+            )
+            logger.info("  rank %d -> %s, %s", k, dat_name.name, upf_name.name)
 
     # --- write index JSON ---
     ranks_json_path = output_dir / f"{stem}_ranks.json"
@@ -242,6 +250,7 @@ def emit_ranks(
         entry: dict = {
             "rank": rec.rank,
             "dat": rec.dat_path.name,
+            "upf": rec.upf_path.name,
             "added": None,
         }
         if rec.added_orbital is not None:

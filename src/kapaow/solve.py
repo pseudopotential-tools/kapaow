@@ -28,6 +28,7 @@ __all__: list[str] = [
     "OrbitalEnergy",
     "PseudoAtomicInput",
     "PseudoAtomicResult",
+    "_write_upf_for_basis",
     "compute_spread",
     "get_outermost_wavefunction",
     "read_femdvr_eigenvalues",
@@ -100,6 +101,121 @@ def read_femdvr_eigenvalues(result: PseudoAtomicResult) -> list[OrbitalEnergy]:
         for n_radial, energy in enumerate(channel_energies[key]):
             orbitals.append(OrbitalEnergy(l=l, n_radial=n_radial, energy=energy))
     return orbitals
+
+
+def _write_upf_for_basis(
+    working_dir: Path,
+    src_upf_path: Path,
+    dst_upf_path: Path,
+    pseudo_basis: PseudoatomicBasis,
+    eigenvalues: list["OrbitalEnergy"],
+) -> None:
+    """Write a UPF file with ``PP_PSWFC`` replaced by *pseudo_basis*.
+
+    The source UPF's mesh and every block other than ``PP_PSWFC`` and
+    ``header.number_of_wfc`` is preserved verbatim. Each new ``PP_CHI``
+    is built by reading the radial wavefunction from the latest
+    ``*_qe.dat`` in *working_dir* and cubic-spline-interpolating it onto
+    the source UPF's ``PP_MESH/PP_R`` grid; values outside the femdvr
+    range are zero-padded.
+
+    Pseudo-energies are converted from Hartree (femdvr) to Rydberg (UPF).
+
+    Parameters
+    ----------
+    working_dir
+        Directory holding the femdvr ``*_qe.dat`` output.
+    src_upf_path
+        Source UPF file, used as the template.
+    dst_upf_path
+        Destination path for the augmented UPF.
+    pseudo_basis
+        Basis whose :attr:`~PseudoatomicBasis.l_values` selects which
+        orbitals are kept (in S, P, D, ... channel order).
+    eigenvalues
+        All :class:`OrbitalEnergy` records returned by
+        :func:`read_femdvr_eigenvalues`. Used to assign each kept
+        orbital its ``pseudo_energy``.
+    """
+    from scipy.interpolate import CubicSpline
+
+    upf = UPFDict.from_upf(src_upf_path)
+    upf_r = np.asarray(upf["mesh"]["r"], dtype=float)
+
+    qe_dat_file = max(
+        working_dir.glob("*_qe.dat"),
+        key=lambda f: f.stat().st_mtime,
+    )
+    _, fem_r_list, fem_l_values, fem_orbitals = read_wannier90_dat_file(qe_dat_file)
+    fem_r = np.asarray(fem_r_list, dtype=float)
+
+    # Map (l, n_radial) -> femdvr-orbital index in the qe.dat file.
+    fem_orbital_index: dict[tuple[int, int], int] = {}
+    fem_count_per_l: dict[int, int] = {}
+    for i, l in enumerate(fem_l_values):
+        n_r = fem_count_per_l.get(l, 0)
+        fem_orbital_index[(l, n_r)] = i
+        fem_count_per_l[l] = n_r + 1
+
+    # Map (l, n_radial) -> femdvr eigenvalue (Hartree).
+    energy_lookup = {(o.l.value, o.n_radial): o.energy for o in eigenvalues}
+
+    # Source-UPF baseline (n, l) per channel: used to keep baseline labels
+    # consistent and to continue the n sequence for added orbitals.
+    baseline_ns_per_l: dict[int, list[int]] = {}
+    src_occ_lookup: dict[tuple[int, int], float] = {}
+    for chi in upf["pswfc"]["chi"]:
+        l_val, n_val = int(chi["l"]), int(chi["n"])
+        baseline_ns_per_l.setdefault(l_val, []).append(n_val)
+        src_occ_lookup[(l_val, n_val)] = float(chi.get("occupation", 0.0))
+    for ns in baseline_ns_per_l.values():
+        ns.sort()
+
+    spdf = "SPDFG"
+    new_chi: list[dict] = []
+    seen_per_l: dict[int, int] = {}
+    for l_int in pseudo_basis.l_values:
+        n_radial = seen_per_l.get(l_int, 0)
+        seen_per_l[l_int] = n_radial + 1
+
+        if (l_int, n_radial) not in fem_orbital_index:
+            raise ValueError(
+                f"femdvr output is missing orbital (l={l_int}, n_radial={n_radial}); "
+                f"available: {sorted(fem_orbital_index.keys())}"
+            )
+        wf = np.asarray(fem_orbitals[fem_orbital_index[(l_int, n_radial)]], dtype=float)
+        spline = CubicSpline(fem_r, wf, extrapolate=False)
+        wf_on_upf = spline(upf_r)
+        wf_on_upf = np.where(np.isnan(wf_on_upf), 0.0, wf_on_upf)
+
+        energy_ha = energy_lookup.get((l_int, n_radial), 0.0)
+        pseudo_energy_ry = 2.0 * energy_ha
+
+        baseline_ns = baseline_ns_per_l.get(l_int, [])
+        if n_radial < len(baseline_ns):
+            n_q = baseline_ns[n_radial]
+        elif baseline_ns:
+            n_q = baseline_ns[-1] + (n_radial - len(baseline_ns) + 1)
+        else:
+            # No baseline orbital in this channel: start from n = l + 1
+            # (the lowest principal quantum number permitting this l).
+            n_q = l_int + 1 + n_radial
+
+        new_chi.append(
+            {
+                "index": len(new_chi) + 1,
+                "occupation": src_occ_lookup.get((l_int, n_q), 0.0),
+                "pseudo_energy": pseudo_energy_ry,
+                "label": f"{n_q}{spdf[l_int]}",
+                "l": l_int,
+                "n": n_q,
+                "content": wf_on_upf,
+            }
+        )
+
+    upf["pswfc"]["chi"] = new_chi
+    upf["header"]["number_of_wfc"] = len(new_chi)
+    upf.to_upf(dst_upf_path)
 
 
 def _write_dat_for_basis(

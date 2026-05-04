@@ -149,6 +149,7 @@ def test_emit_ranks_happy_path(tmp_path: Path, minimal_upf: Path) -> None:
     with (
         patch("kapaow.emit.UPFDict.from_upf", return_value=fake_upf_data),
         patch("kapaow.emit.solve_pseudoatomic_problem", side_effect=fake_solve),
+        patch("kapaow.emit._write_upf_for_basis"),
     ):
         records = emit_ranks(
             minimal_upf,
@@ -208,6 +209,7 @@ def test_emit_ranks_reads_rc_from_json(tmp_path: Path, minimal_upf: Path) -> Non
     with (
         patch("kapaow.emit.UPFDict.from_upf", return_value=fake_upf_data),
         patch("kapaow.emit.solve_pseudoatomic_problem", side_effect=fake_solve),
+        patch("kapaow.emit._write_upf_for_basis"),
     ):
         emit_ranks(minimal_upf, rc_search_json=rc_json, output_dir=tmp_path)
 
