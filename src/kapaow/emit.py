@@ -2,6 +2,7 @@
 
 import json
 import logging
+import tempfile
 from pathlib import Path
 
 from upf_tools import UPFDict
@@ -178,52 +179,56 @@ def emit_ranks(
         _TRIAL_EXTRA_SUBSHELLS,
     )
 
-    # --- single femdvr solve over the trial (enlarged) basis ---
-    trial_dat = Path(f"{stem}_trial.dat")
-    result = solve_pseudoatomic_problem(
-        upf_path,
-        rc=rc,
-        ri_factor=ri_factor,
-        extension=trial_extension,
-        working_dir=output_dir,
-        dat_filename=trial_dat,
-        output_wfc_bessel=False,
-    )
+    # Run the solve in a private scratch directory so femdvr's
+    # intermediate files (*_qe.dat, *_bessel.h5, *_eigenvalues.dat,
+    # *_density_potential.h5, *.log) don't pollute the user's output_dir.
+    with tempfile.TemporaryDirectory(prefix=f"emit_ranks_{stem}_") as scratch_str:
+        scratch = Path(scratch_str)
+        trial_dat = Path(f"{stem}_trial.dat")
+        result = solve_pseudoatomic_problem(
+            upf_path,
+            rc=rc,
+            ri_factor=ri_factor,
+            extension=trial_extension,
+            working_dir=scratch,
+            dat_filename=trial_dat,
+            output_wfc_bessel=False,
+        )
 
-    # --- enumerate all eigenvalues from the solve ---
-    all_orbitals = read_femdvr_eigenvalues(result)
+        # --- enumerate all eigenvalues from the solve ---
+        all_orbitals = read_femdvr_eigenvalues(result)
 
-    # --- partition into baseline vs extra orbitals ---
-    baseline_counts = baseline_pseudo.number_of_orbitals
-    extras: list[OrbitalEnergy] = []
-    for orb in all_orbitals:
-        n_baseline = baseline_counts.get(orb.l, 0)
-        if orb.n_radial >= n_baseline:
-            extras.append(orb)
+        # --- partition into baseline vs extra orbitals ---
+        baseline_counts = baseline_pseudo.number_of_orbitals
+        extras: list[OrbitalEnergy] = []
+        for orb in all_orbitals:
+            n_baseline = baseline_counts.get(orb.l, 0)
+            if orb.n_radial >= n_baseline:
+                extras.append(orb)
 
-    # Sort extras by raw eigenvalue ascending (most bound first).
-    extras.sort(key=lambda o: o.energy)
+        # Sort extras by raw eigenvalue ascending (most bound first).
+        extras.sort(key=lambda o: o.energy)
 
-    if max_rank is not None:
-        extras = extras[:max_rank]
+        if max_rank is not None:
+            extras = extras[:max_rank]
 
-    logger.info(
-        "emit_ranks: %d baseline orbital channels, %d extras available (max_rank=%s)",
-        sum(1 for n in baseline_counts.values() if n > 0),
-        len(extras),
-        max_rank,
-    )
+        logger.info(
+            "emit_ranks: %d baseline orbital channels, %d extras available (max_rank=%s)",
+            sum(1 for n in baseline_counts.values() if n > 0),
+            len(extras),
+            max_rank,
+        )
 
-    # --- emit one dat file per rank ---
-    records: list[RankRecord] = []
-    for k in range(len(extras) + 1):
-        rank_basis = _build_rank_k_basis(baseline_pseudo, extras, k)
-        dat_name = output_dir / f"{stem}_rank{k}.dat"
-        _write_dat_for_basis(output_dir, dat_name, rank_basis)
+        # --- emit one dat file per rank, sourced from the scratch *_qe.dat ---
+        records: list[RankRecord] = []
+        for k in range(len(extras) + 1):
+            rank_basis = _build_rank_k_basis(baseline_pseudo, extras, k)
+            dat_name = output_dir / f"{stem}_rank{k}.dat"
+            _write_dat_for_basis(scratch, dat_name, rank_basis)
 
-        added: OrbitalEnergy | None = extras[k - 1] if k > 0 else None
-        records.append(RankRecord(rank=k, dat_path=dat_name, added_orbital=added))
-        logger.info("  rank %d -> %s", k, dat_name.name)
+            added: OrbitalEnergy | None = extras[k - 1] if k > 0 else None
+            records.append(RankRecord(rank=k, dat_path=dat_name, added_orbital=added))
+            logger.info("  rank %d -> %s", k, dat_name.name)
 
     # --- write index JSON ---
     ranks_json_path = output_dir / f"{stem}_ranks.json"
@@ -242,7 +247,7 @@ def emit_ranks(
         if rec.added_orbital is not None:
             orb = rec.added_orbital
             entry["added"] = {
-                "l": orb.l.name.lower(),
+                "l": orb.l.value,
                 "n_radial": orb.n_radial,
                 "energy": orb.energy,
             }

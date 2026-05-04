@@ -141,12 +141,14 @@ def test_emit_ranks_happy_path(tmp_path: Path, minimal_upf: Path) -> None:
 
     # Fake dat file content: 2 grid points, 3 orbitals (s, s, p)
     qe_dat_content = "2 3\n0 0 1\n1.0e-01 1.0e-01 1.0 0.5 0.2\n2.0e-01 2.0e-01 0.9 0.4 0.1\n"
-    qe_dat = tmp_path / "H_qe.dat"
-    qe_dat.write_text(qe_dat_content, encoding="utf-8")
+
+    def fake_solve(*args, working_dir: Path, **kwargs):
+        (working_dir / "H_qe.dat").write_text(qe_dat_content, encoding="utf-8")
+        return fake_result
 
     with (
         patch("kapaow.emit.UPFDict.from_upf", return_value=fake_upf_data),
-        patch("kapaow.emit.solve_pseudoatomic_problem", return_value=fake_result),
+        patch("kapaow.emit.solve_pseudoatomic_problem", side_effect=fake_solve),
     ):
         records = emit_ranks(
             minimal_upf,
@@ -179,7 +181,7 @@ def test_emit_ranks_happy_path(tmp_path: Path, minimal_upf: Path) -> None:
     assert index["ri_factor"] == pytest.approx(0.95)
     assert len(index["ranks"]) == 2
     assert index["ranks"][0]["added"] is None
-    assert index["ranks"][1]["added"]["l"] == "s"
+    assert index["ranks"][1]["added"]["l"] == 0
     assert index["ranks"][1]["added"]["n_radial"] == 1
 
 
@@ -195,12 +197,12 @@ def test_emit_ranks_reads_rc_from_json(tmp_path: Path, minimal_upf: Path) -> Non
         "pswfc": {"chi": [{"n": 1, "l": 0}]},
     }
     qe_dat_content = "2 1\n0\n1.0e-01 1.0e-01 1.0\n2.0e-01 2.0e-01 0.9\n"
-    (tmp_path / "H_qe.dat").write_text(qe_dat_content, encoding="utf-8")
 
     captured_rc: list[float] = []
 
-    def fake_solve(upf_path, *, rc, **kwargs):
+    def fake_solve(upf_path, *, rc, working_dir: Path, **kwargs):
         captured_rc.append(rc)
+        (working_dir / "H_qe.dat").write_text(qe_dat_content, encoding="utf-8")
         return fake_result
 
     with (
