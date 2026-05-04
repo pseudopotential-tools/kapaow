@@ -1,12 +1,6 @@
-<!--
 <p align="center">
-  <img src="https://github.com/pseudopotential-tools/kapaow/raw/main/docs/source/logo.png" height="150">
+  <img src="docs/source/kapaow.svg" alt="kapaow" height="150">
 </p>
--->
-
-<h1 align="center">
-  kapaow
-</h1>
 
 <p align="center">
     <a href="https://github.com/pseudopotential-tools/kapaow/actions/workflows/tests.yml">
@@ -33,7 +27,7 @@
     -->
 </p>
 
-KAPAOW generates Additional PseudoAtomic Orbitals for Wannierization and more
+`kapaow` generates **a**dditional **p**seudo**a**tomic **o**rbitals for **w**annierization and more
 
 ## 💪 Getting Started
 
