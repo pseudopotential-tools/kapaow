@@ -471,6 +471,65 @@ def rc(
 
 
 # ---------------------------------------------------------------------------
+# emit-ranks
+# ---------------------------------------------------------------------------
+
+
+@main.command("emit-ranks")
+@click.argument("upf", type=click.Path(exists=True, path_type=Path))
+@click.option("--rc", type=float, default=None, help="Confinement radius (Bohr).")
+@click.option(
+    "--rc-search-json",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Read rc from a `kapaow optimize rc` JSON output.",
+)
+@click.option(
+    "--ri-factor",
+    type=float,
+    default=DEFAULT_RI_FACTOR_MAX,
+    show_default=True,
+    help="Inner radius factor for the confinement potential.",
+)
+@click.option(
+    "--max-rank",
+    type=int,
+    default=None,
+    help="Cap the number of extra orbitals (ranks) emitted.",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Directory to write .dat and .json output files.",
+)
+def emit_ranks_cmd(
+    upf: Path,
+    rc: float | None,
+    rc_search_json: Path | None,
+    ri_factor: float,
+    max_rank: int | None,
+    output_dir: Path,
+) -> None:
+    """Emit one .dat file per augmentation rank, by post-processing a single femdvr solve."""
+    from kapaow.emit import emit_ranks
+
+    if (rc is None) == (rc_search_json is None):
+        raise click.UsageError("Provide exactly one of --rc or --rc-search-json.")
+    records = emit_ranks(
+        upf,
+        rc=rc,
+        rc_search_json=rc_search_json,
+        ri_factor=ri_factor,
+        max_rank=max_rank,
+        output_dir=output_dir,
+    )
+    click.echo(f"Emitted {len(records)} ranks to {output_dir}")
+
+
+# ---------------------------------------------------------------------------
 # benchmark
 # ---------------------------------------------------------------------------
 

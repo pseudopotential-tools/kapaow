@@ -17,6 +17,7 @@ from kapaow.basis import (
 )
 from kapaow.extend import BasisExtension
 from kapaow.io import read_wannier90_dat_file, write_wannier90_dat_file
+from kapaow.pydantic import BaseModel
 
 __all__: list[str] = [
     "ATOMIC_FEMDVR_PATCHES",
@@ -24,10 +25,12 @@ __all__: list[str] = [
     "DEFAULT_RC_MIN",
     "DEFAULT_RI_FACTOR_MAX",
     "DEFAULT_RI_FACTOR_MIN",
+    "OrbitalEnergy",
     "PseudoAtomicInput",
     "PseudoAtomicResult",
     "compute_spread",
     "get_outermost_wavefunction",
+    "read_femdvr_eigenvalues",
     "solve_and_export",
     "solve_pseudoatomic_problem",
 ]
@@ -36,6 +39,24 @@ DEFAULT_RC_MIN = 5.0
 DEFAULT_RC_MAX = 15.0
 DEFAULT_RI_FACTOR_MIN = 0.0
 DEFAULT_RI_FACTOR_MAX = 0.95
+
+
+class OrbitalEnergy(BaseModel):
+    """Energy of a single radial orbital from a femdvr solve.
+
+    Parameters
+    ----------
+    l
+        Angular momentum channel.
+    n_radial
+        Zero-based index within the l channel (0 = lowest energy in that channel).
+    energy
+        Orbital energy in Hartree.
+    """
+
+    l: AngularMomentum
+    n_radial: int
+    energy: float
 
 
 # Per-element overrides for the inner pseudoatomic SCF. Keep these alongside
@@ -49,6 +70,72 @@ ATOMIC_FEMDVR_PATCHES: dict[str, PseudoAtomicInput] = {
     "Sb": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
     "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
 }
+
+
+def read_femdvr_eigenvalues(result: PseudoAtomicResult) -> list[OrbitalEnergy]:
+    """Extract per-orbital energies from a :class:`PseudoAtomicResult`.
+
+    Prefers the ``"nscf"`` task (which uses the confinement potential) and
+    falls back to ``"scf"`` if ``"nscf"`` is absent.  Channel keys in the
+    result are string integers (``"0"`` = s, ``"1"`` = p, ...).
+
+    Parameters
+    ----------
+    result
+        Result object returned by :func:`solve_pseudoatomic_problem`.
+
+    Returns
+    -------
+    list[OrbitalEnergy]
+        One entry per (l, n_radial) pair, in l-then-n order.
+    """
+    task = "nscf" if "nscf" in result.eigenvalues else "scf"
+    channel_energies = result.eigenvalues[task]
+
+    orbitals: list[OrbitalEnergy] = []
+    for l in AngularMomentum:
+        key = str(l.value)
+        if key not in channel_energies:
+            break
+        for n_radial, energy in enumerate(channel_energies[key]):
+            orbitals.append(OrbitalEnergy(l=l, n_radial=n_radial, energy=energy))
+    return orbitals
+
+
+def _write_dat_for_basis(
+    working_dir: Path,
+    dat_filename: Path,
+    pseudo_basis: PseudoatomicBasis,
+) -> None:
+    """Write a filtered Wannier90 dat file for the given basis.
+
+    Finds the most recently modified ``*_qe.dat`` in *working_dir*, reads
+    it, selects only the orbitals matching *pseudo_basis*, and writes the
+    result to *dat_filename*.
+
+    Parameters
+    ----------
+    working_dir
+        Directory containing the raw ``*_qe.dat`` output from atomic-femdvr.
+    dat_filename
+        Destination path for the filtered dat file.
+    pseudo_basis
+        Basis whose :attr:`~PseudoatomicBasis.l_values` determines which
+        orbitals are kept.
+    """
+    tmp_dat_file = max(
+        working_dir.glob("*_qe.dat"),
+        key=lambda f: f.stat().st_mtime,
+    )
+    x, r, l_values, orbitals = read_wannier90_dat_file(tmp_dat_file)
+    selected_orbitals = [orbitals[i] for i in _find_matches(l_values, pseudo_basis.l_values)]
+    write_wannier90_dat_file(
+        dat_filename,
+        x,
+        r,
+        pseudo_basis.l_values,
+        np.array(selected_orbitals),
+    )
 
 
 def solve_pseudoatomic_problem(
@@ -154,21 +241,7 @@ def solve_and_export(
     )
 
     # Regenerate the dat file to only include the desired orbitals
-    tmp_dat_file = max(
-        working_dir.glob("*_qe.dat"),
-        key=lambda f: f.stat().st_mtime,
-    )
-    x, r, l_values, orbitals = read_wannier90_dat_file(tmp_dat_file)
-    selected_orbitals = [orbitals[i] for i in _find_matches(l_values, pseudo_basis.l_values)]
-
-    # Write to the requested dat_filename
-    write_wannier90_dat_file(
-        working_dir / dat_filename,
-        x,
-        r,
-        pseudo_basis.l_values,
-        np.array(selected_orbitals),
-    )
+    _write_dat_for_basis(working_dir, working_dir / dat_filename, pseudo_basis)
 
     # Filter the Bessel HDF5 file to only include the desired number of orbitals per l
     bessel_path = _filter_bessel_file(working_dir, pseudo_basis)
