@@ -31,22 +31,20 @@
 
 ## 💪 Getting Started
 
-`kapaow` augments a UPF pseudopotential's PAO basis with extra confined
-orbitals in a tuned soft-step confinement potential. The animation below
-sweeps the confinement geometry for Li and shows how the existing PAOs
-(solid) deviate from their unconfined references (dashed) and how the
-added subshell (orange) emerges. Orbitals whose energy shift exceeds the
-threshold are flagged in red.
+`kapaow` augments a UPF pseudopotential's PAO basis with extra confined orbitals in a tuned soft-step confinement potential.
 
 <p align="center">
   <img src="docs/source/gif/li_confining_potential.gif" alt="Li PAOs under varying confinement" width="600">
 </p>
 
-Reproduce with:
+This animation shows a sweep across different confining potentials for Li and how the existing 1s and 2s PAOs (solid) deviate from their unconfined references (dashed). Orbitals whose energy shift exceeds the accepted threshold are flagged in red.
+
+To find the tightest acceptable confining potential for a `upf` file of your choosing, run
 
 ```console
-$ kapaow animate path/to/Li.upf --add subshell -o li_confining_potential.gif
+kapaow optimize rc <upf>
 ```
+Unlike the `gif` above, this will only change the confinement radius (`rc`) and leave the smoothness of the confining potential unchanged.
 
 ### Command Line Interface
 
@@ -56,14 +54,6 @@ from the console with the `--help` flag to show all subcommands:
 ```console
 $ kapaow --help
 ```
-
-Common entry points:
-
-* `kapaow optimize rc <upf> --threshold <Ha>` — bisect for the smallest
-  confinement radius whose energy shifts stay below the threshold.
-* `kapaow emit-ranks <upf> --rc <Bohr>` — emit one Wannier90 `.dat` file
-  per augmentation rank, ranked by atomic-femdvr eigenvalue.
-* `kapaow animate <upf>` — generate a confinement-sweep GIF (as above).
 
 ## 🚀 Installation
 

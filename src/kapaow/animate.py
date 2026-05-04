@@ -25,6 +25,98 @@ __all__: list[str] = [
 ]
 
 
+def _orbital_colours(
+    *,
+    l_values,
+    original_n_per_l,
+    energy_shifts,
+    energy_shift_threshold_ha,
+    color_original,
+    color_added,
+):
+    """Pick per-orbital colours for a single frame.
+
+    Returns ``(confined_colors, ref_colors)``: blue for preexisting,
+    orange for added, red on the confined trace if the energy shift
+    exceeds the threshold (the unconfined reference stays blue).
+    """
+    confined_colors = []
+    ref_colors = []
+    l_counter: dict[int, int] = {}
+    for l in l_values:
+        n_l = l_counter.get(l, 0)
+        l_shifts = energy_shifts.get(str(l)) if energy_shifts else None
+        n_orig = original_n_per_l.get(AngularMomentum(l), 0)
+        if n_l >= n_orig:
+            confined_colors.append(color_added)
+            ref_colors.append(color_added)
+        elif abs(l_shifts[n_l]) > energy_shift_threshold_ha:
+            confined_colors.append(COLOR_ALERT)
+            ref_colors.append(color_original)
+        else:
+            confined_colors.append(color_original)
+            ref_colors.append(color_original)
+        l_counter[l] = n_l + 1
+    return confined_colors, ref_colors
+
+
+def _add_solid_dashed_legend(ax, color_original, color_added) -> None:
+    """Render the "preexisting / added; confined / unconfined" legend on *ax*.
+
+    Each entry is rendered as two parallel lines (solid above dashed) in
+    the same colour, conveying the four-way colour x linestyle mapping
+    in a compact form.
+    """
+    from matplotlib.legend_handler import HandlerBase
+    from matplotlib.lines import Line2D
+
+    class _SolidDashedHandler(HandlerBase):
+        """Draw a solid line above a dashed line, like an equals sign."""
+
+        def __init__(self, color):
+            super().__init__()
+            self._color = color
+
+        def create_artists(
+            self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans
+        ):
+            spacing = height * 0.35
+            solid = Line2D(
+                [xdescent, xdescent + width],
+                [height / 2 + spacing, height / 2 + spacing],
+                color=self._color,
+                linestyle="-",
+                lw=1.5,
+                transform=trans,
+            )
+            dashed = Line2D(
+                [xdescent, xdescent + width],
+                [height / 2 - spacing, height / 2 - spacing],
+                color=self._color,
+                linestyle="--",
+                lw=1.5,
+                transform=trans,
+            )
+            return [solid, dashed]
+
+    dummy_original = Line2D([], [], label="preexisting PAOs (confined / unconfined)")
+    dummy_added = Line2D([], [], label="added PAO (confined / unconfined)")
+    handles = [dummy_original, dummy_added]
+    ax.legend(
+        handles=handles,
+        handler_map={
+            dummy_original: _SolidDashedHandler(color_original),
+            dummy_added: _SolidDashedHandler(color_added),
+        },
+        loc="lower right",
+        bbox_to_anchor=(1.0, 1.0),
+        ncol=len(handles),
+        fontsize=6,
+        handlelength=4,
+        frameon=False,
+    )
+
+
 def generate_animation(
     upf_path: Path,
     extension: BasisExtension | None = None,
@@ -80,6 +172,11 @@ def generate_animation(
         subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
     )
     original_n_per_l = original_basis.to_pseudoatomic_basis().number_of_orbitals
+    if extension is not None:
+        final_basis = extension.extend(original_basis)
+    else:
+        final_basis = original_basis.to_pseudoatomic_basis()
+    n_panels = sum(1 for count in final_basis.number_of_orbitals.values() if count > 0)
     barrier_height = 10.0
     atomic_femdvr_config = ATOMIC_FEMDVR_PATCHES.get(element)
 
@@ -129,31 +226,30 @@ def generate_animation(
             atomic_femdvr_config=atomic_femdvr_config,
         )
 
-        # Determine per-orbital colors: blue for original, tab:orange for added,
-        # red if shift too large
         _, _, l_values, _ = read_wannier90_dat_file(working_dir / dat_filename)
-        energy_shifts = result.energy_shifts
-        confined_colors = []
-        ref_colors = []
-        l_counter: dict[int, int] = {}
-        for l in l_values:
-            n_l = l_counter.get(l, 0)
-            l_shifts = energy_shifts.get(str(l)) if energy_shifts else None
-            n_orig = original_n_per_l.get(AngularMomentum(l), 0)
-            is_added = n_l >= n_orig
-            if is_added:
-                confined_colors.append(color_added)
-                ref_colors.append(color_added)
-            elif abs(l_shifts[n_l]) > energy_shift_threshold_ha:
-                confined_colors.append(COLOR_ALERT)
-                ref_colors.append(color_original)
-            else:
-                confined_colors.append(color_original)
-                ref_colors.append(color_original)
-            l_counter[l] = n_l + 1
+        confined_colors, ref_colors = _orbital_colours(
+            l_values=l_values,
+            original_n_per_l=original_n_per_l,
+            energy_shifts=result.energy_shifts,
+            energy_shift_threshold_ha=energy_shift_threshold_ha,
+            color_original=color_original,
+            color_added=color_added,
+        )
 
-        axes = plot_wannier90_dat_file(
+        # Pre-create a 1×n_panels horizontal grid; share y so the radial
+        # wavefunctions are directly comparable between l channels.
+        _, axes_seq = plt.subplots(
+            1,
+            n_panels,
+            figsize=(3.0 * n_panels + 0.6, 2.7),
+            sharey=True,
+            squeeze=False,
+        )
+        axes = list(axes_seq[0])
+
+        plot_wannier90_dat_file(
             working_dir / dat_filename,
+            axes=axes,
             fix_sign=True,
             colors=confined_colors,
             reference_orbitals=ref_orbitals,
@@ -169,7 +265,9 @@ def generate_animation(
         for j, ax in enumerate(axes):
             ax.set_xlim([0, 20])
             ax.set_ylim([-2, 2])
-            ax.set_ylabel("PAOs")
+            ax.set_xlabel("$r$ (Bohr)")
+            if j == 0:
+                ax.set_ylabel("PAOs")
             ax2 = ax.twinx()
             r_start = rc * ri_factor
             r = np.linspace(r_start, rc, 100)
@@ -189,76 +287,16 @@ def generate_animation(
                 alpha=0.3,
             )
             ax2.set_ylim([0, barrier_height])
-            ax2.set_ylabel("confining potential (Ha)")
-            # Legend on top subplot only
-            if j == 0:
-                from matplotlib.legend_handler import HandlerBase
-                from matplotlib.lines import Line2D
+            if j == n_panels - 1:
+                ax2.set_ylabel("confining potential (Ha)")
+            else:
+                ax2.set_yticklabels([])
+            # Legend on the rightmost panel only, laid out horizontally.
+            if j == n_panels - 1:
+                _add_solid_dashed_legend(ax, color_original, color_added)
 
-                class _SolidDashedHandler(HandlerBase):
-                    """Draw a solid line above a dashed line, like an equals sign."""
-
-                    def __init__(self, color: str):
-                        super().__init__()
-                        self._color = color
-
-                    def create_artists(
-                        self,
-                        legend,
-                        orig_handle,
-                        xdescent,
-                        ydescent,
-                        width,
-                        height,
-                        fontsize,
-                        trans,
-                    ):
-                        spacing = height * 0.35
-                        solid = Line2D(
-                            [xdescent, xdescent + width],
-                            [height / 2 + spacing, height / 2 + spacing],
-                            color=self._color,
-                            linestyle="-",
-                            lw=1.5,
-                            transform=trans,
-                        )
-                        dashed = Line2D(
-                            [xdescent, xdescent + width],
-                            [height / 2 - spacing, height / 2 - spacing],
-                            color=self._color,
-                            linestyle="--",
-                            lw=1.5,
-                            transform=trans,
-                        )
-                        return [solid, dashed]
-
-                dummy_original = Line2D(
-                    [],
-                    [],
-                    label="preexisting PAOs (confined / unconfined)",
-                )
-                dummy_added = Line2D(
-                    [],
-                    [],
-                    label="added PAO (confined / unconfined)",
-                )
-                ax.legend(
-                    handles=[dummy_original, dummy_added],
-                    handler_map={
-                        dummy_original: _SolidDashedHandler(color_original),
-                        dummy_added: _SolidDashedHandler(color_added),
-                    },
-                    loc="lower right",
-                    bbox_to_anchor=(1.0, 1.0),
-                    ncol=1,
-                    fontsize=6,
-                    handlelength=4,
-                    frameon=False,
-                )
-
-        axes[-1].set_xlabel("$r$ (Bohr)")
         frame_path = working_dir / f"frame_{i:03d}.png"
-        plt.subplots_adjust(top=0.93, left=0.15, right=0.875, bottom=0.075)
+        plt.subplots_adjust(top=0.86, left=0.10, right=0.92, bottom=0.18, wspace=0.10)
         plt.savefig(frame_path, dpi=150)
         plt.close("all")
         frames.append(frame_path)
