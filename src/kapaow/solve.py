@@ -1,6 +1,6 @@
 """Solve the pseudoatomic problem."""
 
-from contextlib import redirect_stdout
+from contextlib import chdir, redirect_stdout
 from pathlib import Path
 
 import h5py
@@ -283,7 +283,9 @@ def solve_pseudoatomic_problem(
     # Construct the settings for atomic-femdvr
     if atomic_femdvr_config is None:
         atomic_femdvr_config = PseudoAtomicInput()
-    atomic_femdvr_config.sysparams.file_upf = str(upf_path)
+    # Resolve to absolute paths so they survive the ``chdir(working_dir)``
+    # we do around the femdvr call below.
+    atomic_femdvr_config.sysparams.file_upf = str(Path(upf_path).resolve())
     atomic_femdvr_config.sysparams.nmax = pseudo_basis.n_max
     atomic_femdvr_config.sysparams.lmax = pseudo_basis.l_max.value
     atomic_femdvr_config.sysparams.element = upf_dict["header"]["element"]
@@ -301,15 +303,24 @@ def solve_pseudoatomic_problem(
     for hdf5_file in working_dir.glob("*_density_potential.h5"):
         hdf5_file.unlink()
 
-    # Solve the pseudoatomic problem
+    # Solve the pseudoatomic problem.
+    #
+    # atomic-femdvr writes its checkpoint file (``*_density_potential.h5``)
+    # to CWD rather than to ``export_dir``, so we chdir into ``working_dir``
+    # for the duration of the solve. Otherwise stray h5 files pile up in
+    # whatever directory the caller happened to invoke kapaow from.
     if dat_filename is None:
         dat_filename = Path(upf_path.name).with_suffix(".dat")
     log_path = (working_dir / dat_filename).with_suffix(".log")
-    with redirect_stdout(open(log_path, "w", encoding="utf-8")):
+    working_dir.mkdir(parents=True, exist_ok=True)
+    with (
+        redirect_stdout(open(log_path, "w", encoding="utf-8")),
+        chdir(working_dir),
+    ):
         result = solve_pseudo_atomic(
             atomic_femdvr_config,
             task_list=("scf", "optimize", "nscf"),
-            export_dir=str(working_dir),
+            export_dir=".",
         )
 
     return result
