@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 from upf_tools import UPFDict
 
-from kapaow.basis import AngularMomentum, AtomicBasis, Subshell
+from kapaow.basis import AngularMomentum, AtomicBasis
 from kapaow.extend import BasisExtension
 from kapaow.io import read_wannier90_dat_file
 from kapaow.plotting import COLOR_ALERT, COLORMAP, plot_wannier90_dat_file
@@ -168,9 +168,7 @@ def generate_animation(
 
     upf_dict = UPFDict.from_upf(upf_path)
     element = upf_dict["header"]["element"].strip()
-    original_basis = AtomicBasis(
-        subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-    )
+    original_basis = AtomicBasis.from_upf(upf_path)
     original_n_per_l = original_basis.to_pseudoatomic_basis().number_of_orbitals
     if extension is not None:
         final_basis = extension.extend(original_basis)

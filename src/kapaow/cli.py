@@ -119,15 +119,12 @@ def _describe_extension(upf: Path, extension: BasisExtension) -> str:
     produce e.g. ``"_with_2p_and_3s"``.  For polarization, returns
     ``"_polarized"`` (or ``"_polarized_x2"`` etc.).
     """
-    from kapaow.basis import AtomicBasis, Subshell
+    from kapaow.basis import AtomicBasis
 
     l_letters = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
 
     if isinstance(extension, BasisExtensionViaAddition):
-        upf_dict = UPFDict.from_upf(upf)
-        original = AtomicBasis(
-            subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-        )
+        original = AtomicBasis.from_upf(upf)
         extended = extension.extend_atomic(original)
         added = [s for s in extended.subshells if s not in original.subshells]
         names = [f"{s.n}{l_letters[s.l]}" for s in added]

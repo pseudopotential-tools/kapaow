@@ -5,9 +5,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from upf_tools import UPFDict
-
-from kapaow.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis, Subshell
+from kapaow.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis
 from kapaow.extend import BasisExtensionViaAddition
 from kapaow.pydantic import BaseModel
 from kapaow.solve import (
@@ -67,10 +65,7 @@ def _baseline_pseudo_basis(upf_path: Path) -> tuple[AtomicBasis, PseudoatomicBas
         The :class:`~kapaow.basis.AtomicBasis` from the UPF projectors, and
         its :class:`~kapaow.basis.PseudoatomicBasis` equivalent.
     """
-    upf_dict = UPFDict.from_upf(upf_path)
-    atomic_basis = AtomicBasis(
-        subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-    )
+    atomic_basis = AtomicBasis.from_upf(upf_path)
     return atomic_basis, atomic_basis.to_pseudoatomic_basis()
 
 

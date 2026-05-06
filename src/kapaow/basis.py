@@ -168,8 +168,62 @@ ordered_subshells = [
     Subshell(n=4, l=AngularMomentum.F),  # 4f
     Subshell(n=5, l=AngularMomentum.D),  # 5d
     Subshell(n=6, l=AngularMomentum.P),  # 6p
-    Subshell(n=7, l=AngularMomentum.S),
-]  # 7s
+    Subshell(n=7, l=AngularMomentum.S),  # 7s
+    Subshell(n=5, l=AngularMomentum.F),  # 5f
+    Subshell(n=6, l=AngularMomentum.D),  # 6d
+    Subshell(n=7, l=AngularMomentum.P),  # 7p
+    Subshell(n=8, l=AngularMomentum.S),  # 8s
+]
+
+
+def _valence_subshells_from_z_valence(*, element: str, z_valence: float) -> list[Subshell]:
+    """Reconstruct the valence subshells of a neutral-atom Madelung filling.
+
+    Used when a UPF advertises ``number_of_wfc=0`` and therefore has no
+    ``<PP_CHI>`` blocks to read the baseline basis from. We fill
+    :data:`ordered_subshells` with the neutral atom's Z electrons, then
+    peel subshells off the outermost end until their electron count
+    sums to ``z_valence`` -- those are the subshells the pseudo treats
+    as valence.
+    """
+    from ase.data import atomic_numbers
+
+    z = atomic_numbers[element.strip()]
+    z_val_int = round(z_valence)
+    if abs(z_valence - z_val_int) > 1e-3:
+        raise ValueError(f"z_valence={z_valence} is not (close to) an integer")
+
+    # Fill subshells in Madelung order until we have placed z electrons.
+    filled: list[tuple[Subshell, int]] = []
+    remaining = z
+    for subshell in ordered_subshells:
+        if remaining <= 0:
+            break
+        capacity = 2 * (2 * subshell.l + 1)
+        electrons = min(capacity, remaining)
+        filled.append((subshell, electrons))
+        remaining -= electrons
+    if remaining > 0:
+        raise ValueError(
+            f"ordered_subshells does not extend far enough to fill {element} "
+            f"(Z={z}); please add more entries."
+        )
+
+    # Peel the outermost subshells off until they sum to z_valence.
+    valence: list[Subshell] = []
+    used = 0
+    for subshell, electrons in reversed(filled):
+        if used >= z_val_int:
+            break
+        valence.append(subshell)
+        used += electrons
+    if used != z_val_int:
+        raise ValueError(
+            f"Cannot partition {element} (Z={z}) Madelung filling into a "
+            f"valence shell of {z_val_int} electrons (got {used}); the "
+            "pseudo's valence partition does not align with Madelung order."
+        )
+    return list(reversed(valence))
 
 
 class AtomicBasis(Basis):
@@ -203,11 +257,30 @@ class AtomicBasis(Basis):
 
     @classmethod
     def from_upf(cls, upf_path: Path) -> AtomicBasis:
-        """Construct an AtomicBasis from a UPF pseudopotential file."""
+        """Construct an AtomicBasis from a UPF pseudopotential file.
+
+        If the UPF ships pseudoatomic wavefunctions (``<PP_CHI>``
+        blocks), the basis is read directly. Otherwise (e.g. SG15
+        ONCV, where ``PP_HEADER`` advertises ``number_of_wfc=0``),
+        the baseline is reconstructed from the neutral-atom Madelung
+        filling, keeping only the outermost subshells whose electron
+        count sums to ``z_valence``.
+        """
         from upf_tools import UPFDict
 
         upf_dict = UPFDict.from_upf(upf_path)
-        return cls(subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]])
+        header = upf_dict["header"]
+        n_wfc = int(header.get("number_of_wfc", 0))
+        if n_wfc > 0:
+            return cls(
+                subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
+            )
+        return cls(
+            subshells=_valence_subshells_from_z_valence(
+                element=str(header["element"]).strip(),
+                z_valence=float(header["z_valence"]),
+            )
+        )
 
     def extend(self, subshells: list[Subshell]) -> AtomicBasis:
         """Return a new AtomicBasis with an added subshell."""

@@ -162,7 +162,9 @@ def _write_upf_for_basis(
     # consistent and to continue the n sequence for added orbitals.
     baseline_ns_per_l: dict[int, list[int]] = {}
     src_occ_lookup: dict[tuple[int, int], float] = {}
-    for chi in upf["pswfc"]["chi"]:
+    # Pseudos without ``<PP_CHI>`` blocks (e.g. SG15 ONCV) leave ``pswfc``
+    # empty; fall back to an empty iterable so the writer still works.
+    for chi in upf.get("pswfc", {}).get("chi", []) or []:
         l_val, n_val = int(chi["l"]), int(chi["n"])
         baseline_ns_per_l.setdefault(l_val, []).append(n_val)
         src_occ_lookup[(l_val, n_val)] = float(chi.get("occupation", 0.0))
@@ -268,11 +270,7 @@ def solve_pseudoatomic_problem(
     and export wavefunctions to the working directory.
     """
     upf_dict = UPFDict.from_upf(upf_path)
-
-    # Construct the atomic basis
-    atomic_basis = AtomicBasis(
-        subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-    )
+    atomic_basis = AtomicBasis.from_upf(upf_path)
 
     # Extend the basis if requested
     if extension is not None:
@@ -344,10 +342,7 @@ def solve_and_export(
     Returns the solver result and the path to the filtered Bessel HDF5 file
     (or None if no Bessel file was produced).
     """
-    upf_dict = UPFDict.from_upf(upf_path)
-    atomic_basis = AtomicBasis(
-        subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-    )
+    atomic_basis = AtomicBasis.from_upf(upf_path)
     if extension is not None:
         pseudo_basis = extension.extend(atomic_basis)
     else:
