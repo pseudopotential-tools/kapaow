@@ -365,19 +365,25 @@ def spread(
     add: tuple[str, ...],
 ) -> None:
     """Optimize PAO spread by scanning rc and ri_factor, producing a Pareto front."""
+    import tempfile
+
     from kapaow.pareto import compute_pareto_front, dump_pareto_json, plot_pareto
 
     extension = get_extension(add)
     rc_values = list(rc) if rc else None
     ri_factor_values = list(ri_factor) if ri_factor else None
 
-    spreads, max_energy_shifts, metadata = compute_pareto_front(
-        upf,
-        extension=extension,
-        rc_values=rc_values,
-        ri_factor_values=ri_factor_values,
-        loglog=loglog,
-    )
+    # Per-invocation scratch: ``_evaluate_point`` builds ``rc_*_ri_*`` subdirs
+    # that aren't namespaced by element, so concurrent jobs would collide.
+    with tempfile.TemporaryDirectory(prefix=f"optimize_spread_{upf.stem}_") as scratch_str:
+        spreads, max_energy_shifts, metadata = compute_pareto_front(
+            upf,
+            extension=extension,
+            rc_values=rc_values,
+            ri_factor_values=ri_factor_values,
+            working_dir=Path(scratch_str),
+            loglog=loglog,
+        )
 
     # Always dump JSON (to a default path if not specified), then plot from it
     effective_json = (
@@ -444,19 +450,25 @@ def rc(
     add: tuple[str, ...],
 ) -> None:
     """Bisect over rc to find the smallest value satisfying an energy-shift threshold."""
+    import tempfile
+
     from kapaow.rc_search import dump_rc_search_json, find_smallest_rc
     from kapaow.solve import DEFAULT_RC_MAX, DEFAULT_RC_MIN
 
     extension = get_extension(add)
-    rc_value, points = find_smallest_rc(
-        upf,
-        ri_factor=ri_factor,
-        threshold=threshold,
-        extension=extension,
-        rc_min=rc_min if rc_min is not None else DEFAULT_RC_MIN,
-        rc_max=rc_max if rc_max is not None else DEFAULT_RC_MAX,
-        tol=tol,
-    )
+    # Per-invocation scratch: ``_evaluate_point`` builds ``rc_*_ri_*`` subdirs
+    # that aren't namespaced by element, so concurrent jobs would collide.
+    with tempfile.TemporaryDirectory(prefix=f"optimize_rc_{upf.stem}_") as scratch_str:
+        rc_value, points = find_smallest_rc(
+            upf,
+            ri_factor=ri_factor,
+            threshold=threshold,
+            extension=extension,
+            rc_min=rc_min if rc_min is not None else DEFAULT_RC_MIN,
+            rc_max=rc_max if rc_max is not None else DEFAULT_RC_MAX,
+            tol=tol,
+            working_dir=Path(scratch_str),
+        )
     effective_json = (
         json_path if json_path is not None else Path("tmp/optimize/rc_search") / f"{upf.stem}.json"
     )

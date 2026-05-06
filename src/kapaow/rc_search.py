@@ -117,9 +117,18 @@ def find_smallest_rc(
     )
 
     if not satisfies(rc_max):
+        last = points[-1]
+        if last["max_energy_shift"] is None:
+            raise RuntimeError(
+                f"rc_max={rc_max} did not produce a result (SCF failed to "
+                f"converge) at ri_factor={ri_factor}; consider adding an "
+                "ATOMIC_FEMDVR_PATCHES entry (e.g. softer alpha_mix) for "
+                "this element."
+            )
         raise RuntimeError(
             f"rc_max={rc_max} does not satisfy the energy-shift threshold "
-            f"{threshold} at ri_factor={ri_factor}; widen the bracket."
+            f"{threshold} at ri_factor={ri_factor} (max_energy_shift="
+            f"{last['max_energy_shift']:.6f}); widen the bracket."
         )
 
     if satisfies(rc_min):

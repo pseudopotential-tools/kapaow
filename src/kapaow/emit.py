@@ -5,10 +5,13 @@ import logging
 import tempfile
 from pathlib import Path
 
+from upf_tools import UPFDict
+
 from kapaow.basis import AngularMomentum, AtomicBasis, PseudoatomicBasis
 from kapaow.extend import BasisExtensionViaAddition
 from kapaow.pydantic import BaseModel
 from kapaow.solve import (
+    ATOMIC_FEMDVR_PATCHES,
     DEFAULT_RI_FACTOR_MAX,
     OrbitalEnergy,
     _write_dat_for_basis,
@@ -187,6 +190,9 @@ def emit_ranks(
     # --- build baseline and trial extension ---
     _, baseline_pseudo = _baseline_pseudo_basis(upf_path)
 
+    element = UPFDict.from_upf(upf_path)["header"]["element"].strip()
+    atomic_femdvr_config = ATOMIC_FEMDVR_PATCHES.get(element)
+
     trial_extension = BasisExtensionViaAddition(increment=_TRIAL_EXTRA_SUBSHELLS)
 
     logger.info(
@@ -212,6 +218,7 @@ def emit_ranks(
             dat_filename=trial_dat,
             output_wfc_bessel=False,
             output_wfc_hdf5=True,
+            atomic_femdvr_config=atomic_femdvr_config,
         )
 
         # --- enumerate all eigenvalues from the solve ---

@@ -68,6 +68,7 @@ ATOMIC_FEMDVR_PATCHES: dict[str, PseudoAtomicInput] = {
     "Cu": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
     "Pd": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
     "At": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 200}),
+    "Ir": PseudoAtomicInput(dft={"alpha_mix": 0.1, "max_iter": 300}),
     "Sb": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
     "Zn": PseudoAtomicInput(dft={"alpha_mix": 0.3}),
 }
