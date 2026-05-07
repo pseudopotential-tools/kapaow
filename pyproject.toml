@@ -59,7 +59,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "Pillow",
     # Pseudoatomic solver + UPF parsing
-    "atomic-femdvr",
+    "atomic-femdvr @ git+https://github.com/elinscott/atomic-femdvr.git@polishing",
     "upf-tools>=0.1.10",
     # Periodic table / Bokeh plotting + SVG/PNG/PDF export
     "bokeh",
@@ -360,5 +360,4 @@ qe-wavefunctions = { path = "../schueler/QE-wavefunctions", editable = true }
 ase-koopmans = { path = "../ase_koopmans" }
 koopmans = { path = "../koopmans2", editable = true }
 aiida-koopmans = { path = "../aiida-koopmans2", editable = true }
-atomic-femdvr = { git = "https://github.com/elinscott/atomic-femdvr", branch = "polishing" }
 aiida-wannier90 = { path = "../aiida-wannier90" }
