@@ -9,8 +9,8 @@ model for code contributions. Follow these steps:
 
 1. [Create a fork](https://help.github.com/articles/fork-a-repo) of the upstream
    repository at
-   [`pseudopotential-tools/kapaow`](https://github.com/pseudopotential-tools/kapaow) on your
-   GitHub account (or in one of your organizations)
+   [`pseudopotential-tools/kapaow`](https://github.com/pseudopotential-tools/kapaow)
+   on your GitHub account (or in one of your organizations)
 2. [Clone your fork](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
    with `git clone https://github.com/<your namespace here>/kapaow.git`
 3. Make and commit changes to your fork with `git commit`

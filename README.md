@@ -27,29 +27,37 @@
     -->
 </p>
 
-`kapaow` generates **a**dditional **p**seudo**a**tomic **o**rbitals for **w**annierization and more
+`kapaow` generates **a**dditional **p**seudo**a**tomic **o**rbitals for
+**w**annierization and more
 
 ## 💪 Getting Started
 
-`kapaow` augments a UPF pseudopotential's PAO basis with extra confined orbitals in a tuned soft-step confinement potential.
+`kapaow` augments a UPF pseudopotential's PAO basis with extra confined orbitals
+in a tuned soft-step confinement potential.
 
 <p align="center">
   <img src="docs/source/gif/li_confining_potential.gif" alt="Li PAOs under varying confinement" width="600">
 </p>
 
-This animation shows a sweep across different confining potentials for Li and how the existing 1s and 2s PAOs (solid) deviate from their unconfined references (dashed). Orbitals whose energy shift exceeds the accepted threshold are flagged in red.
+This animation shows a sweep across different confining potentials for Li and
+how the existing 1s and 2s PAOs (solid) deviate from their unconfined references
+(dashed). Orbitals whose energy shift exceeds the accepted threshold are flagged
+in red.
 
-To find the tightest acceptable confining potential for a `upf` file of your choosing, run
+To find the tightest acceptable confining potential for a `upf` file of your
+choosing, run
 
 ```console
 kapaow optimize rc <upf>
 ```
-Unlike the `gif` above, this will only change the confinement radius (`rc`) and leave the smoothness of the confining potential unchanged.
+
+Unlike the `gif` above, this will only change the confinement radius (`rc`) and
+leave the smoothness of the confining potential unchanged.
 
 ### Command Line Interface
 
-The `kapaow` command line tool is automatically installed. It can be used
-from the console with the `--help` flag to show all subcommands:
+The `kapaow` command line tool is automatically installed. It can be used from
+the console with the `--help` flag to show all subcommands:
 
 ```console
 $ kapaow --help
@@ -84,10 +92,10 @@ or with pip:
 $ python3 -m pip install git+https://github.com/pseudopotential-tools/kapaow.git
 ```
 
-> ⚠️ `kapaow` also ships experimental, AiiDA-backed functionality
-> (benchmarks, fat-band plots, gauge analysis, Bayesian projectability
-> optimisation) under the `experimental` extras. This code is not
-> release-quality yet — install it explicitly if you want to try it:
+> ⚠️ `kapaow` also ships experimental, AiiDA-backed functionality (benchmarks,
+> fat-band plots, gauge analysis, Bayesian projectability optimisation) under
+> the `experimental` extras. This code is not release-quality yet — install it
+> explicitly if you want to try it:
 >
 > ```console
 > $ pip install 'kapaow[experimental]'
@@ -242,8 +250,8 @@ to each release of your package. Do the following for each repository:
 
 After these steps, you're ready to go! After you make "release" on GitHub (steps
 for this are below), you can navigate to
-https://zenodo.org/account/settings/github/repository/pseudopotential-tools/kapaow to
-see the DOI for the release and link to the Zenodo record for it.
+https://zenodo.org/account/settings/github/repository/pseudopotential-tools/kapaow
+to see the DOI for the release and link to the Zenodo record for it.
 
 #### Registering with the Python Package Index (PyPI)
 
@@ -291,8 +299,8 @@ This script does the following:
 
 1. Uses [bump-my-version](https://github.com/callowayproject/bump-my-version) to
    switch the version number in the `pyproject.toml`, `CITATION.cff`,
-   `src/kapaow/version.py`, and
-   [`docs/source/conf.py`](docs/source/conf.py) to not have the `-dev` suffix
+   `src/kapaow/version.py`, and [`docs/source/conf.py`](docs/source/conf.py) to
+   not have the `-dev` suffix
 2. Packages the code in both a tar archive and a wheel using
    [`uv build`](https://docs.astral.sh/uv/guides/publish/#building-your-package)
 3. Uploads to PyPI using
@@ -304,8 +312,8 @@ This script does the following:
 
 #### Releasing on GitHub
 
-1. Navigate to https://github.com/pseudopotential-tools/kapaow/releases/new to draft a
-   new release
+1. Navigate to https://github.com/pseudopotential-tools/kapaow/releases/new to
+   draft a new release
 2. Click the "Choose a Tag" dropdown and select the tag corresponding to the
    release you just made
 3. Click the "Generate Release Notes" button to get a quick outline of recent
