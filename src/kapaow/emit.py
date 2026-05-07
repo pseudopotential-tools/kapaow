@@ -4,6 +4,7 @@ import json
 import logging
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from upf_tools import UPFDict
 
@@ -264,7 +265,7 @@ def emit_ranks(
     from importlib.metadata import version as _pkg_version
 
     ranks_json_path = output_dir / f"{stem}_ranks.json"
-    index: dict = {
+    index: dict[str, Any] = {
         "upf": str(upf_path),
         "kapaow_version": _pkg_version("kapaow"),
         "rc": rc,
@@ -272,7 +273,7 @@ def emit_ranks(
         "ranks": [],
     }
     for rec in records:
-        entry: dict = {
+        entry: dict[str, Any] = {
             "rank": rec.rank,
             "dat": rec.dat_path.name,
             "upf": rec.upf_path.name,

@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -110,7 +111,7 @@ def _accumulate_result(
     spreads: list[float],
     max_energy_shifts: list[float],
     dat_files: list[Path],
-    metadata: list[dict],
+    metadata: list[dict[str, Any]],
     refined: bool = False,
 ) -> None:
     """Append a successful evaluation result to the accumulator lists."""
@@ -138,7 +139,7 @@ def _accumulate_result(
 
 
 def _annotate_confinement(
-    metadata: list[dict],
+    metadata: list[dict[str, Any]],
     dat_files: list[Path],
     atomic_basis: AtomicBasis,
 ) -> None:
@@ -168,7 +169,7 @@ def compute_pareto_front(
     ri_factor_values: list[float] | None = None,
     working_dir: Path = Path("tmp/optimize/spread"),
     loglog: bool = False,
-) -> tuple[list[float], list[float], list[dict]]:
+) -> tuple[list[float], list[float], list[dict[str, Any]]]:
     """Scan rc and ri_factor and collect spread and max energy shift for each.
 
     Parameters
@@ -211,7 +212,7 @@ def compute_pareto_front(
     spreads: list[float] = []
     max_energy_shifts: list[float] = []
     dat_files: list[Path] = []
-    metadata: list[dict] = []
+    metadata: list[dict[str, Any]] = []
 
     # Initial grid scan
     for rc in rc_values:
@@ -282,7 +283,7 @@ def compute_pareto_front(
 def dump_pareto_json(
     spreads: list[float],
     max_energy_shifts: list[float],
-    metadata: list[dict],
+    metadata: list[dict[str, Any]],
     path: Path,
     upf_path: Path | None = None,
 ) -> None:
@@ -299,7 +300,7 @@ def dump_pareto_json(
         }
         for i in range(len(spreads))
     ]
-    output: dict = {}
+    output: dict[str, Any] = {}
     if upf_path is not None:
         output["upf_path"] = str(upf_path)
     output["points"] = points

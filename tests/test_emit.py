@@ -143,6 +143,7 @@ def test_emit_ranks_happy_path(tmp_path: Path, minimal_upf: Path) -> None:
     qe_dat_content = "2 3\n0 0 1\n1.0e-01 1.0e-01 1.0 0.5 0.2\n2.0e-01 2.0e-01 0.9 0.4 0.1\n"
 
     def fake_solve(*args, working_dir: Path, **kwargs):
+        """Stub the femdvr solve: drop a canned dat file and return ``fake_result``."""
         (working_dir / "H_qe.dat").write_text(qe_dat_content, encoding="utf-8")
         return fake_result
 
@@ -202,6 +203,7 @@ def test_emit_ranks_reads_rc_from_json(tmp_path: Path, minimal_upf: Path) -> Non
     captured_rc: list[float] = []
 
     def fake_solve(upf_path, *, rc, working_dir: Path, **kwargs):
+        """Stub the femdvr solve and capture the ``rc`` value passed in."""
         captured_rc.append(rc)
         (working_dir / "H_qe.dat").write_text(qe_dat_content, encoding="utf-8")
         return fake_result

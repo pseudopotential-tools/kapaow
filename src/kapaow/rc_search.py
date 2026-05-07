@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from upf_tools import UPFDict
 
@@ -28,7 +29,7 @@ def find_smallest_rc(
     rc_max: float = DEFAULT_RC_MAX,
     tol: float = 0.05,
     working_dir: Path = Path("tmp/optimize/rc_search"),
-) -> tuple[float, list[dict]]:
+) -> tuple[float, list[dict[str, Any]]]:
     """Find the smallest rc such that all energy shifts are below ``threshold``.
 
     Performs a bisection search over rc at fixed ``ri_factor``.  At each
@@ -79,9 +80,10 @@ def find_smallest_rc(
 
     working_dir.mkdir(parents=True, exist_ok=True)
 
-    points: list[dict] = []
+    points: list[dict[str, Any]] = []
 
     def satisfies(rc: float) -> bool:
+        """Return True if ``rc`` meets the projectability/spread thresholds."""
         out = _evaluate_point(
             upf_path,
             rc,
@@ -149,7 +151,7 @@ def find_smallest_rc(
 
 def dump_rc_search_json(
     rc_value: float,
-    points: list[dict],
+    points: list[dict[str, Any]],
     ri_factor: float,
     threshold: float,
     path: Path,
@@ -164,7 +166,7 @@ def dump_rc_search_json(
     """
     from importlib.metadata import version as _pkg_version
 
-    output: dict = {}
+    output: dict[str, Any] = {}
     if upf_path is not None:
         output["upf_path"] = str(upf_path)
     output["kapaow_version"] = _pkg_version("kapaow")

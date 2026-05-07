@@ -41,9 +41,13 @@ def compute_num_target_bands(
         present in the structure.
     """
     import ase.io
+    from ase import Atoms
 
     atoms = ase.io.read(str(structure_file))
-    return sum(orbitals_per_element[sym] for sym in atoms.get_chemical_symbols())
+    if not isinstance(atoms, Atoms):
+        raise TypeError(f"Expected single Atoms, got {type(atoms).__name__}")
+    symbols: list[str] = atoms.get_chemical_symbols()  # type: ignore[no-untyped-call]
+    return sum(orbitals_per_element[sym] for sym in symbols)
 
 
 def compute_min_nbnd(num_target_bands: int) -> int:

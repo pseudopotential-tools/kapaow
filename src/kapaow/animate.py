@@ -74,12 +74,14 @@ def _add_solid_dashed_legend(ax, color_original, color_added) -> None:
         """Draw a solid line above a dashed line, like an equals sign."""
 
         def __init__(self, color):
+            """Store the colour used for both legend lines."""
             super().__init__()
             self._color = color
 
         def create_artists(
             self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans
         ):
+            """Build the solid + dashed line pair for the legend entry."""
             spacing = height * 0.35
             solid = Line2D(
                 [xdescent, xdescent + width],

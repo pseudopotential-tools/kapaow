@@ -270,11 +270,9 @@ class AtomicBasis(Basis):
 
         upf_dict = UPFDict.from_upf(upf_path)
         header = upf_dict["header"]
-        n_wfc = int(header.get("number_of_wfc", 0))
-        if n_wfc > 0:
-            return cls(
-                subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in upf_dict["pswfc"]["chi"]]
-            )
+        chi_blocks = upf_dict.get("pswfc", {}).get("chi") if "pswfc" in upf_dict else None
+        if chi_blocks:
+            return cls(subshells=[Subshell(n=chi["n"], l=chi["l"]) for chi in chi_blocks])
         return cls(
             subshells=_valence_subshells_from_z_valence(
                 element=str(header["element"]).strip(),

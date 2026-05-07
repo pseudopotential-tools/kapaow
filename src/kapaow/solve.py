@@ -2,6 +2,7 @@
 
 from contextlib import chdir, redirect_stdout
 from pathlib import Path
+from typing import Any
 
 import h5py
 import numpy as np
@@ -173,7 +174,7 @@ def _write_upf_for_basis(
         ns.sort()
 
     spdf = "SPDFG"
-    new_chi: list[dict] = []
+    new_chi: list[dict[str, Any]] = []
     seen_per_l: dict[int, int] = {}
     for l_int in pseudo_basis.l_values:
         n_radial = seen_per_l.get(l_int, 0)
@@ -284,11 +285,11 @@ def solve_pseudoatomic_problem(
         atomic_femdvr_config = PseudoAtomicInput()
     # Resolve to absolute paths so they survive the ``chdir(working_dir)``
     # we do around the femdvr call below.
-    atomic_femdvr_config.sysparams.file_upf = str(Path(upf_path).resolve())
+    atomic_femdvr_config.sysparams.file_upf = Path(upf_path).resolve()
     atomic_femdvr_config.sysparams.nmax = pseudo_basis.n_max
     atomic_femdvr_config.sysparams.lmax = pseudo_basis.l_max.value
     atomic_femdvr_config.sysparams.element = upf_dict["header"]["element"]
-    atomic_femdvr_config.confinement.type = "softstep"
+    atomic_femdvr_config.confinement.type = "softstep"  # type: ignore[assignment]
     atomic_femdvr_config.confinement.polarization_mode = "softcoul"
     atomic_femdvr_config.confinement.Vbarrier = 10.0
     atomic_femdvr_config.confinement.rc = rc

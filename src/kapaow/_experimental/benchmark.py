@@ -694,10 +694,12 @@ def _sqrt_shifted_scale(offset: float) -> tuple:
     """Return (forward, inverse) functions for a sqrt(y - offset) scale."""
 
     def forward(y: npt.ArrayLike) -> npt.ArrayLike:
+        """Apply the forward sqrt-shift transform."""
         with np.errstate(invalid="ignore"):
             return np.sqrt(y - offset)
 
     def inverse(y_t: npt.ArrayLike) -> npt.ArrayLike:
+        """Apply the inverse of :func:`forward`."""
         return y_t**2 + offset
 
     return forward, inverse

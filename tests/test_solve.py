@@ -44,6 +44,7 @@ class _FakeResult:
     """Minimal stand-in for PseudoAtomicResult."""
 
     def __init__(self, eigenvalues: dict) -> None:
+        """Store the canned eigenvalue dict the fake will expose."""
         self.eigenvalues = eigenvalues
 
 

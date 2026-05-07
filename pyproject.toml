@@ -58,7 +58,7 @@ dependencies = [
     "Pillow",
     # Pseudoatomic solver + UPF parsing
     "atomic-femdvr @ git+https://github.com/elinscott/atomic-femdvr.git@polishing",
-    "upf-tools>=0.1.10",
+    "upf-tools>=0.1.11",
     # Periodic table / Bokeh plotting + SVG/PNG/PDF export
     "bokeh",
     "periodic_trends @ git+https://github.com/Andrew-S-Rosen/periodic_trends.git",
@@ -172,6 +172,27 @@ skip = [
 plugins = [
     "pydantic.mypy",
 ]
+
+# Click decorator typing and matplotlib/bokeh-heavy modules have large untyped
+# third-party surfaces; --strict fights idiomatic usage.
+[[tool.mypy.overrides]]
+module = [
+    "kapaow.cli",
+    "kapaow.animate",
+    "kapaow.plotting",
+    "kapaow.periodic_table",
+]
+ignore_errors = true
+
+# Optional research code, gated behind the [experimental] extra.
+[[tool.mypy.overrides]]
+module = "kapaow._experimental.*"
+ignore_errors = true
+
+# Tests use mock fixtures that don't satisfy production type contracts.
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
 
 # Doc8, see https://doc8.readthedocs.io/en/stable/readme.html#ini-file-usage
 [tool.doc8]

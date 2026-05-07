@@ -90,6 +90,7 @@ def experimental(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
+        """Invoke ``func`` and rewrite missing-extras ImportErrors as Click errors."""
         try:
             return func(*args, **kwargs)
         except ImportError as exc:
@@ -205,15 +206,15 @@ def main(ctx: click.Context, debug: bool, log: bool) -> None:
     help="Output .dat file path (default: <stem>.dat).",
 )
 def convert(input_file: Path, select_str: str | None, output: Path | None) -> None:
-    r"""Convert a pseudopotential file to Wannier90 .dat format.
+    """Convert a pseudopotential file to Wannier90 .dat format.
 
     INPUT_FILE is a UPF pseudopotential or an OpenMX .pao file. The format
     is detected from the file extension.
 
     If -o/--output is not provided, the .dat content is printed to stdout.
 
-    \b
-    Examples:
+    Examples::
+
         kapaow convert Li.upf
         kapaow convert Li.upf -o Li.dat
         kapaow convert Li8.0.pao --select sspd
@@ -261,12 +262,12 @@ def convert(input_file: Path, select_str: str | None, output: Path | None) -> No
 def confine(
     upf: Path, rc: float | None, ri_factor: float | None, add: tuple[str, ...], output: Path | None
 ) -> None:
-    r"""Solve for PAOs under a confining potential, optionally adding orbitals.
+    """Solve for PAOs under a confining potential, optionally adding orbitals.
 
     If -o/--output is not provided, the .dat content is printed to stdout.
 
-    \b
-    Examples:
+    Examples::
+
         kapaow confine Li.upf --add subshell --rc 8 --ri-factor 0.9
         kapaow confine Li.upf --add subshell --add subshell
     """
@@ -562,15 +563,14 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
     output: Path | None,
     symmetrize: bool,
 ) -> None:
-    r"""Benchmark rival projectors by wannierizing a structure.
+    """Benchmark rival projectors by wannierizing a structure.
 
     Runs wannierization (as a metal) for each rival projector .dat file and
     compares disentanglement difficulty, convergence, and Wannier function
     spreads.
 
-    CONFIG is a TOML file specifying the structure and projectors per element:
+    CONFIG is a TOML file specifying the structure and projectors per element::
 
-    \b
         structure = "LiF.cif"
 
         [Li]
@@ -580,8 +580,8 @@ def benchmark(  # noqa: C901  # CLI command orchestrates multiple AiiDA workflow
         [O]
         "Standard" = "projectors/O.dat"
 
-    \b
-    Example:
+    Example::
+
         kapaow benchmark benchmark.toml
     """
     from kapaow._experimental.benchmark import (
@@ -880,6 +880,7 @@ def with_output_option(default_format: str, from_config: str | None = None) -> C
     """
 
     def decorator(func: Callable) -> click.Command:
+        """Attach the configured ``--output`` Click option to ``func``."""
         if from_config is None:
             return click.option(
                 "--output",
@@ -901,6 +902,7 @@ def with_output_option(default_format: str, from_config: str | None = None) -> C
         )
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Resolve ``--output`` from the config-file stem when omitted."""
             if kwargs.get("output") is None:
                 config_path = kwargs[from_config]
                 kwargs["output"] = Path(config_path).with_suffix(default_format)
@@ -1139,7 +1141,7 @@ def compare_gauge_matrices(
     working_dir: Path | None,
     num_bands: int | None,
 ) -> None:
-    r"""Compare A_mn^k and U_mn^k matrices across different PAO choices.
+    """Compare A_mn^k and U_mn^k matrices across different PAO choices.
 
     Computes the projection matrix A and its unitary polar factor U (from
     SVD) for each PAO set defined in the TOML config, then prints a
@@ -1149,8 +1151,8 @@ def compare_gauge_matrices(
 
     CONFIG_FILE uses the same ``[[Element]]`` syntax as compare-projectability.
 
-    \b
-    Example:
+    Example::
+
         kapaow plot compare-gauge-matrices LiF_projectability_comparison.toml
     """
     import numpy as np

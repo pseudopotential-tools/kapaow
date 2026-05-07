@@ -895,6 +895,7 @@ def plot_projectability_comparison(  # noqa: C901  # scatter + KDE + threshold m
         """Draw a filled circle and a filled rectangle side-by-side."""
 
         def __init__(self, color, alpha=0.5):
+            """Store the colour and alpha used for both legend artists."""
             self._color = color
             self._alpha = alpha
             super().__init__()
@@ -902,6 +903,7 @@ def plot_projectability_comparison(  # noqa: C901  # scatter + KDE + threshold m
         def create_artists(
             self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans
         ):
+            """Build the circle + rectangle pair drawn in the legend entry."""
             cx = width * 0.25
             cy = height / 2
             circle = Circle(
