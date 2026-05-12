@@ -1,5 +1,5 @@
 <!--
-Thanks for contributing to `pao-plusplus`.
+Thanks for contributing to `kapaow`.
 To help us out with reviewing, please consider the following:
 
 - Does this pull request include a summary of the change? (See below.)

@@ -1,0 +1,144 @@
+***************************************************
+                    Input file
+***************************************************
+
+  #
+  # File Name
+  #
+
+  System.CurrrentDir    ./             # default=./
+  System.Name            C0
+  Log.print              Off           # ON|OFF
+
+  System.UseRestartfile  yes           # NO|YES, default=NO
+  System.Restartfile     C0            # default=null
+
+  #
+  # Calculation type
+  #
+
+  eq.type               sch            # sch|sdirac|dirac
+  calc.type             all            # ALL|VPS|PAO
+  xc.type               LDA            # LDA|GGA
+
+  #
+  # Atom
+  #
+
+  AtomSpecies             6
+  max.occupied.N           2
+  total.electron         6.0
+  valence.electron       4.0
+  <occupied.electrons
+   1   2.0
+   2   2.0  2.0
+  occupied.electrons>
+
+  #
+  # parameters for solving 1D-differential equations
+  #
+
+  grid.xmin             -8.0           # default=-7.0 rmin(a.u.)=exp(grid.xmin)
+  grid.xmax              2.8           # default= 2.5 rmax(a.u.)=exp(grid.xmax)
+  grid.num               2000          # default=4000
+  grid.num.output         500          # default=2000
+
+  #
+  # SCF
+  #
+
+  scf.maxIter              60          # default=40
+  scf.Mixing.Type       simple         # Simple|GR-Pulay
+  scf.Init.Mixing.Weight 0.10          # default=0.300
+  scf.Min.Mixing.Weight  0.001         # default=0.001
+  scf.Max.Mixing.Weight  0.800         # default=0.800
+  scf.Mixing.History      7            # default=5
+  scf.Mixing.StartPulay   9            # default=6
+  scf.criterion         1.0e-10        # default=1.0e-9
+
+  #
+  # Pseudopotetial, cutoff (A.U.)
+  #
+
+  vps.type               TM            # BHS|TM
+  number.vps              2
+  <pseudo.NandL
+   0  2  0  1.20  0.0
+   1  2  1  1.25  0.0
+  pseudo.NandL>
+  Blochl.projector.num    4            # default=1 which means KB-form
+  local.type            polynomial     # Simple|Polynomial
+  local.part.vps          1            # default=0
+  local.cutoff           1.50          # default=smallest_cutoff_vps
+  local.origin.ratio     4.00          # default=3.0
+  log.deri.RadF.calc      on           # ON|OFF
+  log.deri.MinE          -3.0          # default=-3.0 (Hartree)
+  log.deri.MaxE           2.0          # default= 2.0 (Hartree)
+  log.deri.num             50          # default=50
+  <log.deri.R
+   0  2.2
+   1  2.4
+  log.deri.R>
+  ghost.check             off          # ON|OFF
+
+  #
+  # Core electron density for partial core correction
+  #   pcc.ratio=rho_core/rho_V,
+  #   pcc.ratio.origin = rho_core(orgin)/rho_core(ip)
+  #
+
+  charge.pcc.calc        on            # ON|OFF
+  pcc.ratio              0.25          # default=1.0
+  pcc.ratio.origin       5.00          # default=6.0
+
+  #
+  # Pseudo atomic orbitals
+  #
+
+  maxL.pao                2            # default=2
+  num.pao                 5            # default=7
+  radial.cutoff.pao      5.0           # default=5.0 (Bohr)
+  height.of.wall    20000.0            # default=4000.0 (Hartree)
+  rising.edge           0.2            # default=0.5(Bohr),r1=rc-rising.edge
+  search.LowerE       -3.000           # default=-3.000 (Hartree)
+  search.UpperE       20.000           # default=20.000 (Hartree)
+  num.of.partition      300            # default=300
+  matching.point.ratio  0.67           # default=0.67
+
+*****************************************************
+    SCF history in all electron calculations      
+*****************************************************
+
+ SCF=   1  Eeigen=-31.1432610521402 (Hartree)  NormRD=  9.7504824337910
+ SCF=   2  Eeigen=-31.2507824481920 (Hartree)  NormRD=  9.6908568790504
+ SCF=   3  Eeigen=-29.2904374089902 (Hartree)  NormRD=  6.4223342805656
+ SCF=   4  Eeigen=-24.3586103571628 (Hartree)  NormRD=  1.3490158536348
+ SCF=   5  Eeigen=-21.9965036829843 (Hartree)  NormRD=  0.1523028186916
+ SCF=   6  Eeigen=-21.5002109590127 (Hartree)  NormRD=  0.0119067469939
+ SCF=   7  Eeigen=-21.3467192266812 (Hartree)  NormRD=  0.0005718475963
+ SCF=   8  Eeigen=-21.3045977061498 (Hartree)  NormRD=  0.0000175378857
+ SCF=   9  Eeigen=-21.2984619045622 (Hartree)  NormRD=  0.0000005376916
+ SCF=  10  Eeigen=-21.2965170176427 (Hartree)  NormRD=  0.0000000125540
+ SCF=  11  Eeigen=-21.2966277103151 (Hartree)  NormRD=  0.0000000012975
+ SCF=  12  Eeigen=-21.2964361910017 (Hartree)  NormRD=  0.0000000000864
+
+*****************************************************
+ Eigenvalues (Hartree) in the all electron calculation
+*****************************************************
+
+ n=  1  l=  0        -9.9479219357833
+ n=  2  l=  0        -0.5009865574917
+ n=  2  l=  1        -0.1993096022259
+
+
+*****************************************************
+ Energies (Hartree) in the all electron calculation 
+*****************************************************
+
+ Eeigen =      -21.2964361910017
+ Ekin   =       37.1873926464442
+ EHart  =       17.6249339614759
+ Exc    =       -4.7271002754349
+ Eec    =      -87.5097256776490
+ Etot   = Ekin + EHart + Exc + Eec
+ Etot   =      -37.4244993451637

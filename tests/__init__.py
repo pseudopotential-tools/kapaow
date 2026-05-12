@@ -1,1 +1,1 @@
-"""Tests for :mod:`pao_plusplus`."""
+"""Tests for :mod:`kapaow`."""

@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.14"
 
       # cf. https://github.com/astral-sh/setup-uv?tab=readme-ov-file#usage
       - name: Install the latest version of uv

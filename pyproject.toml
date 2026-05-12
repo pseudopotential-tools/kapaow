@@ -3,7 +3,7 @@ requires = ["uv_build>=0.6.6,<1.0"]
 build-backend = "uv_build"
 
 [project]
-name = "pao_plusplus"
+name = "kapaow"
 version = "0.0.1-dev"
 description = "Find optimal pseudoatomic orbitals for representing bands in bulk systems"
 readme = "README.md"
@@ -27,10 +27,8 @@ classifiers = [
     "Framework :: Sphinx",
     "Natural Language :: English",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Typing :: Typed",
     # TODO add your topics from the Trove controlled vocabulary (see https://pypi.org/classifiers)
@@ -47,12 +45,30 @@ license-files = [
     "LICENSE",
 ]
 
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-    "more_itertools", # missing from itertools in stdlib
-    "tqdm", # progress bars
+    # Numerical / scientific stack
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "ase",
+    "h5py",
+    "pandas>=2.3.3",
+    "seaborn>=0.13.2",
+    "Pillow",
+    # Pseudoatomic solver + UPF parsing
+    "atomic-femdvr @ git+https://github.com/elinscott/atomic-femdvr.git@polishing",
+    "upf-tools>=0.1.11",
+    # Periodic table / Bokeh plotting + SVG/PNG/PDF export
+    "bokeh",
+    "periodic_trends @ git+https://github.com/Andrew-S-Rosen/periodic_trends.git",
+    "selenium>=4.38.0",
+    "chromedriver-binary>=144.0.7523.0.0",
+    "cairosvg>=2.8.2",
+    # Validation + CLI
+    "pydantic",
+    "tqdm",
     "click",
-    "more_click",
     "typing-extensions",
 ]
 
@@ -64,7 +80,7 @@ tests = [
 ]
 docs = [
     "sphinx>=8",
-    "sphinx-rtd-theme>=3.0","sphinx-click", 
+    "sphinx-rtd-theme>=3.0","sphinx-click",
     "sphinx_automodapi",
     # Include if your project uses Pydantic:
     # "autodoc_pydantic",
@@ -74,6 +90,10 @@ docs = [
 ]
 lint = [
     "ruff",
+]
+pylint = [
+    { include-group = "tests" },
+    "pylint",
 ]
 typing = [
     { include-group = "tests" },
@@ -113,20 +133,33 @@ release = [
 ]
 
 # see https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#dependencies-optional-dependencies
-# [project.optional-dependencies]
+[project.optional-dependencies]
+# Pull in the AiiDA + Quantum ESPRESSO + Wannier90 stack used by
+# kapaow._experimental (benchmark, fat bands, gauge analysis, Bayesian
+# projectability optimisation, etc.). Required only if you want any of
+# the experimental subcommands or the corresponding Python entry points.
+experimental = [
+    "aiida-koopmans",
+    "aiida-wannier90",
+    "ase-koopmans",
+    "bayesian-optimization>=3.1.0",
+    "koopmans",
+    "qe-wavefunctions",
+    "scikit-image",
+]
 
 
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#urls
 # and also https://packaging.python.org/en/latest/specifications/well-known-project-urls/
 [project.urls]
-"Bug Tracker" = "https://github.com/elinscott/pao-plusplus/issues"
-Homepage = "https://github.com/elinscott/pao-plusplus"
-Repository = "https://github.com/elinscott/pao-plusplus.git"
-Documentation = "https://pao_plusplus.readthedocs.io"
+"Bug Tracker" = "https://github.com/pseudopotential-tools/kapaow/issues"
+Homepage = "https://github.com/pseudopotential-tools/kapaow"
+Repository = "https://github.com/pseudopotential-tools/kapaow.git"
+Documentation = "https://kapaow.readthedocs.io"
 Funding = "https://github.com/sponsors/elinscott"
 
 [project.scripts]
-pao_plusplus = "pao_plusplus.cli:main"
+kapaow = "kapaow.cli:main"
 
 [tool.cruft]
 skip = [
@@ -139,6 +172,27 @@ skip = [
 plugins = [
     "pydantic.mypy",
 ]
+
+# Click decorator typing and matplotlib/bokeh-heavy modules have large untyped
+# third-party surfaces; --strict fights idiomatic usage.
+[[tool.mypy.overrides]]
+module = [
+    "kapaow.cli",
+    "kapaow.animate",
+    "kapaow.plotting",
+    "kapaow.periodic_table",
+]
+ignore_errors = true
+
+# Optional research code, gated behind the [experimental] extra.
+[[tool.mypy.overrides]]
+module = "kapaow._experimental.*"
+ignore_errors = true
+
+# Tests use mock fixtures that don't satisfy production type contracts.
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
 
 # Doc8, see https://doc8.readthedocs.io/en/stable/readme.html#ini-file-usage
 [tool.doc8]
@@ -154,20 +208,20 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = [
-    "pao_plusplus",
+    "kapaow",
 ]
 omit = [
     "tests/*",
     "docs/*",
-    "src/pao_plusplus/version.py",
-    "src/pao_plusplus/__main__.py",
-    "src/pao_plusplus/cli.py",
+    "src/kapaow/version.py",
+    "src/kapaow/__main__.py",
+    "src/kapaow/cli.py",
 ]
 
 [tool.coverage.paths]
 source = [
-    "src/pao_plusplus",
-    ".tox/*/lib/python*/site-packages/pao_plusplus",
+    "src/kapaow",
+    ".tox/*/lib/python*/site-packages/kapaow",
 ]
 
 [tool.coverage.report]
@@ -208,16 +262,25 @@ extend-select = [
 ignore = [
     "D105", # Missing docstring in magic method
     "E203", # Black conflicts with the following
+    "E741", # l not allowed as a variable
+    "RUF001", # Ambiguous unicode in string
+    "RUF003", # Ambiguous unicode in comment
 ]
 
 # See https://docs.astral.sh/ruff/settings/#per-file-ignores
 [tool.ruff.lint.per-file-ignores]
 # Ignore security issues in the version.py, which are inconsistent
-"src/pao_plusplus/version.py" = ["S603", "S607"]
+"src/kapaow/version.py" = ["S603", "S607"]
 # Ignore commented out code in Sphinx configuration file
 "docs/source/conf.py" = ["ERA001"]
 # Prints are okay in notebooks
 "notebooks/**/*.ipynb" = ["T201"]
+# Allow assert within tests
+"tests/**/*.py" = ["S101"]
+# Math-heavy modules: uppercase variable/argument names are mathematical convention
+# (B, D, M, U, R, S, etc. denote matrices)
+"**/symmetrize.py" = ["N803", "N806"]
+"**/test_symmetrize.py" = ["N803", "N806"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -228,7 +291,7 @@ known-third-party = [
     "tqdm",
 ]
 known-first-party = [
-    "pao_plusplus",
+    "kapaow",
     "tests",
 ]
 
@@ -267,7 +330,7 @@ search = "release = \"{current_version}\""
 replace = "release = \"{new_version}\""
 
 [[tool.bumpversion.files]]
-filename = "src/pao_plusplus/version.py"
+filename = "src/kapaow/version.py"
 search = "VERSION = \"{current_version}\""
 replace = "VERSION = \"{new_version}\""
 
@@ -275,3 +338,45 @@ replace = "VERSION = \"{new_version}\""
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
+
+[tool.pylint]
+# Be slightly more lenient than default
+fail-under = 9.75
+max-args = 7
+max-positional-arguments = 7
+
+[tool.pylint.typecheck]
+signature-mutators = [
+    "click.decorators.option",
+    "click.decorators.argument",
+    "click.decorators.version_option",
+    "click.decorators.help_option",
+    "click.decorators.pass_context",
+    "click.decorators.confirmation_option"
+]
+
+# Vendored reference data used by the experimental analysis tools is
+# tracked in git for the repo checkout but excluded from the published
+# sdist/wheel so `pip install kapaow` stays small.
+[tool.uv.build-backend]
+source-exclude = [
+    "src/kapaow/data/openmx/PAO/**",
+    "src/kapaow/data/openmx/VPS/**",
+    "src/kapaow/data/sssp/structures/gs/**",
+    "src/kapaow/data/sssp/structures/oxides/**",
+    "src/kapaow/data/sssp/structures/unaries/**",
+]
+wheel-exclude = [
+    "kapaow/data/openmx/PAO/**",
+    "kapaow/data/openmx/VPS/**",
+    "kapaow/data/sssp/structures/gs/**",
+    "kapaow/data/sssp/structures/oxides/**",
+    "kapaow/data/sssp/structures/unaries/**",
+]
+
+[tool.uv.sources]
+qe-wavefunctions = { path = "../schueler/QE-wavefunctions", editable = true }
+ase-koopmans = { path = "../ase_koopmans" }
+koopmans = { path = "../koopmans2", editable = true }
+aiida-koopmans = { path = "../aiida-koopmans2", editable = true }
+aiida-wannier90 = { path = "../aiida-wannier90" }

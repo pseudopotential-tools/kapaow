@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 
 # -- Project information -----------------------------------------------------
 
-project = "pao_plusplus"
+project = "kapaow"
 copyright = f"{date.today().year}, Edward Linscott"
 author = "Edward Linscott"
 
@@ -60,7 +60,7 @@ if os.environ.get("READTHEDOCS", "") == "True":
 add_module_names = False
 
 # A list of prefixes that are ignored when creating the module index. (new in Sphinx 0.6)
-modindex_common_prefix = ["pao_plusplus."]
+modindex_common_prefix = ["kapaow."]
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -151,7 +151,7 @@ if os.path.exists("logo.png"):
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "pao_plusplus_doc"
+htmlhelp_basename = "kapaow_doc"
 
 # -- Options for LaTeX output ------------------------------------------------
 
@@ -179,8 +179,8 @@ htmlhelp_basename = "pao_plusplus_doc"
 # latex_documents = [
 #     (
 #         master_doc,
-#         'pao_plusplus.tex',
-#         'pao-plusplus Documentation',
+#         'kapaow.tex',
+#         'kapaow Documentation',
 #         author,
 #         'manual',
 #     ),
@@ -193,8 +193,8 @@ htmlhelp_basename = "pao_plusplus_doc"
 man_pages = [
     (
         master_doc,
-        "pao_plusplus",
-        "pao-plusplus Documentation",
+        "kapaow",
+        "kapaow Documentation",
         [author],
         1,
     ),
@@ -208,8 +208,8 @@ man_pages = [
 texinfo_documents = [
     (
         master_doc,
-        "pao_plusplus",
-        "pao-plusplus Documentation",
+        "kapaow",
+        "kapaow Documentation",
         author,
         "Edward Linscott",
         "Find optimal pseudoatomic orbitals for representing bands in bulk systems",

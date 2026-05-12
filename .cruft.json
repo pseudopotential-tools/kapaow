@@ -4,14 +4,14 @@
   "checkout": null,
   "context": {
     "cookiecutter": {
-      "package_name": "pao_plusplus",
-      "package_name_stylized": "pao-plusplus",
+      "package_name": "kapaow",
+      "package_name_stylized": "kapaow",
       "short_description": "Find optimal pseudoatomic orbitals for representing bands in bulk systems",
       "author_name": "Edward Linscott",
       "author_github": "elinscott",
       "author_email": "edwardlinscott@gmail.com",
-      "github_organization_name": "elinscott",
-      "github_repository_name": "pao-plusplus",
+      "github_organization_name": "pseudopotential-tools",
+      "github_repository_name": "kapaow",
       "command_line_interface": true,
       "gitlab": false,
       "runner": "tox",
@@ -22,7 +22,7 @@
       "__runner_install_uv": "uv tool install tox --with tox-uv",
       "__runner_install_pip": "python3 -m pip install tox tox-uv",
       "__runner_tests": "py",
-      "__gh_slug": "elinscott/pao-plusplus",
+      "__gh_slug": "pseudopotential-tools/kapaow",
       "_template": "https://github.com/cthoyt/cookiecutter-snekpack",
       "_commit": "9e91376bfbc5bb2cd59e325ef1dc289a961e5aa4"
     }
